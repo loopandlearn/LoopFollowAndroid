@@ -78,3 +78,7 @@ Each entry: **title**: what differs and why. Code: Android location. iOS: the co
 ## Graph
 
 - **Basal schedule before its first entry**: when the current time is before the first scheduled basal entry of the day, the schedule continues from the previous day's last entry. iOS steps past the start of the schedule array there. Code: `engine/ProfileTask.kt` (`updateProfile`). iOS: `Controllers/Nightscout/Profile.swift`.
+
+## Home
+
+- **BG and info table widths**: the BG block takes at least 55% of the row and the info table the rest, up to 250 dp, so the BG reading stays large on narrow phones and with larger text. iOS gives the table 160 to 250 points and the BG view the remaining width. Code: `ui/home/HomeScreen.kt` (`BGAndInfoRow`). iOS: `ViewControllers/MainHomeView.swift`.

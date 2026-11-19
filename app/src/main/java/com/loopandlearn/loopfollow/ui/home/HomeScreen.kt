@@ -145,7 +145,12 @@ fun MainHomeView(onStatsTap: () -> Unit) {
     }
 }
 
-/** The BG block sets the row's height; the info table gets that height and scrolls when it has more rows. */
+/**
+ * The BG block sets the row's height; the info table gets that height and scrolls when it has more rows.
+ *
+ * ANDROID-DEVIATION: the BG block takes at least 55% of the width and the table the rest, up to 250 dp,
+ * so the BG reading stays large on narrow phones and with larger text.
+ */
 @Composable
 private fun BGAndInfoRow() {
     Layout(
@@ -156,7 +161,8 @@ private fun BGAndInfoRow() {
         modifier = Modifier.fillMaxWidth(),
     ) { measurables, constraints ->
         val gap = 10.dp.roundToPx()
-        val tableWidth = 250.dp.roundToPx().coerceAtMost(constraints.maxWidth - gap).coerceAtLeast(0)
+        val available = (constraints.maxWidth - gap).coerceAtLeast(0)
+        val tableWidth = minOf(250.dp.roundToPx(), (available * 0.45f).toInt())
         val bgWidth = (constraints.maxWidth - gap - tableWidth).coerceAtLeast(0)
         val bgHeight = measurables[0].minIntrinsicHeight(bgWidth)
         val bg = measurables[0].measure(Constraints.fixed(bgWidth, bgHeight))
