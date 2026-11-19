@@ -2,7 +2,6 @@ package com.loopandlearn.loopfollow.ui.menu
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -18,15 +17,22 @@ import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Plagiarism
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loopandlearn.loopfollow.BuildConfig
+import com.loopandlearn.loopfollow.helpers.LogManager
 import com.loopandlearn.loopfollow.storage.Observable
 import com.loopandlearn.loopfollow.storage.Storage
 import com.loopandlearn.loopfollow.storage.TabItem
@@ -52,6 +58,7 @@ private val supportLinks = listOf(
 fun MenuScreen(nav: NavStack) {
     val colors = LocalAppColors.current
     val context = LocalContext.current
+    var noLogs by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(colors.groupedBackground)) {
         Text(
             "Menu",
@@ -77,7 +84,7 @@ fun MenuScreen(nav: NavStack) {
                 NavigationRow("View Log", Icons.Outlined.Plagiarism) { nav.push(Route.Log) }
                 FormDivider()
                 FormRow(onClick = {
-                    if (!shareLogs(context)) Toast.makeText(context, "There are no logs to share.", Toast.LENGTH_SHORT).show()
+                    if (LogManager.logFilesForTodayAndYesterday().isEmpty()) noLogs = true else nav.push(Route.ShareLogs)
                 }) {
                     Icon(Icons.Outlined.Share, null, tint = colors.blue, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(12.dp))
@@ -101,5 +108,14 @@ fun MenuScreen(nav: NavStack) {
                 LabeledValueRow("Platform", "Android ${android.os.Build.VERSION.RELEASE}")
             }
         }
+    }
+
+    if (noLogs) {
+        AlertDialog(
+            onDismissRequest = { noLogs = false },
+            title = { Text("No Logs Available") },
+            text = { Text("There are no logs to share.") },
+            confirmButton = { TextButton(onClick = { noLogs = false }) { Text("OK") } },
+        )
     }
 }
