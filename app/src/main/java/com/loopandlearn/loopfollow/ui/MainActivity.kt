@@ -151,9 +151,12 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         super.onStop()
         com.loopandlearn.loopfollow.engine.NightscoutSocketManager.disconnect()
-        // Leaving the app returns it to the home screen; a configuration change or one of the app's own
-        // activities (scanner, picker, share sheet) keeps the current tab and navigation.
-        if (!isChangingConfigurations && !childActivityOpen) Observable.selectedTabIndex.value = 0
+        // Leaving the app returns it to the home screen, or to the Snoozer while an alarm is active; a configuration
+        // change or one of the app's own activities (scanner, picker, share sheet) keeps the current tab and navigation.
+        if (!isChangingConfigurations && !childActivityOpen) {
+            val snoozerIndex = Storage.orderedTabBarItems().indexOf(TabItem.SNOOZER)
+            Observable.selectedTabIndex.value = if (Observable.currentAlarm.value != null && snoozerIndex >= 0) snoozerIndex else 0
+        }
     }
 }
 
