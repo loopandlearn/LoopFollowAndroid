@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -287,8 +288,14 @@ private fun MainChart(data: ChartData, modifier: Modifier) {
             com.loopandlearn.loopfollow.engine.RetroSelection.select(anchor?.let { it.readingDate ?: it.date }, refresh = true)
         }
 
-        // New data restarts the gesture handling below, which ends a gesture in progress without its lift.
-        DisposableEffect(data) {
+        // The gesture handling below runs for the chart's lifetime and reads the latest data and size, so a gesture
+        // in progress lasts until the finger lifts, through new data and the layout change the scrubbed displays cause.
+        val currentData by rememberUpdatedState(data)
+        val currentWidthPx by rememberUpdatedState(widthPx)
+        val currentDateAt by rememberUpdatedState<(Float) -> Double> { dateAt(it) }
+        val currentTapAnchor by rememberUpdatedState<(Offset) -> SelectionAnchor?> { tapAnchor(it) }
+        val currentCycleZoomPreset by rememberUpdatedState<() -> Unit> { cycleZoomPreset() }
+        DisposableEffect(Unit) {
             onDispose {
                 interacting = false
                 selection = null
@@ -301,7 +308,7 @@ private fun MainChart(data: ChartData, modifier: Modifier) {
         Canvas(
             Modifier
                 .fillMaxSize()
-                .pointerInput(data) {
+                .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         momentum?.cancel()
@@ -331,7 +338,7 @@ private fun MainChart(data: ChartData, modifier: Modifier) {
                                 // Held in place: latch inspect.
                                 mode = 2
                                 tapped = null
-                                selection = dateAt(lastPos.x)
+                                selection = currentDateAt(lastPos.x)
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 continue
                             }
@@ -352,13 +359,13 @@ private fun MainChart(data: ChartData, modifier: Modifier) {
                                     selection = null
                                     pinchStartDistance = dist
                                     pinchStartVisible = inter.visibleSeconds
-                                    pinchAnchorFraction = centroid / widthPx
-                                    pinchAnchorDate = dateAt(centroid)
+                                    pinchAnchorFraction = centroid / currentWidthPx
+                                    pinchAnchorDate = currentDateAt(centroid)
                                 } else if (pinchStartDistance > 0) {
                                     val proposed = (pinchStartVisible * pinchStartDistance / dist)
                                         .coerceIn(ChartTuning.MIN_VISIBLE, ChartTuning.MAX_VISIBLE)
                                     inter.visibleSeconds = proposed
-                                    inter.scrollStart = inter.clampedLeadingEdge(pinchAnchorDate - proposed * pinchAnchorFraction, data)
+                                    inter.scrollStart = inter.clampedLeadingEdge(pinchAnchorDate - proposed * pinchAnchorFraction, currentData)
                                 }
                                 event.changes.forEach { it.consume() }
                                 continue
@@ -377,18 +384,18 @@ private fun MainChart(data: ChartData, modifier: Modifier) {
                                     } else if (System.currentTimeMillis() - downTime >= ChartTuning.INSPECT_HOLD_MS) {
                                         mode = 2
                                         tapped = null
-                                        selection = dateAt(change.position.x)
+                                        selection = currentDateAt(change.position.x)
                                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
                                 }
                                 1 -> {
                                     val dx = change.position.x - panOrigin.x
-                                    inter.scrollStart = inter.clampedLeadingEdge(panBaseline - dx / widthPx * inter.visibleSeconds, data)
-                                    inter.updateFollowState(data)
+                                    inter.scrollStart = inter.clampedLeadingEdge(panBaseline - dx / currentWidthPx * inter.visibleSeconds, currentData)
+                                    inter.updateFollowState(currentData)
                                     change.consume()
                                 }
                                 2 -> {
-                                    selection = dateAt(change.position.x)
+                                    selection = currentDateAt(change.position.x)
                                     change.consume()
                                 }
                             }
@@ -402,12 +409,12 @@ private fun MainChart(data: ChartData, modifier: Modifier) {
                                 if (now - lastTapTime < ChartTuning.DOUBLE_TAP_MS) {
                                     pendingTap?.cancel()
                                     lastTapTime = 0
-                                    cycleZoomPreset()
+                                    currentCycleZoomPreset()
                                 } else {
                                     lastTapTime = now
                                     pendingTap = scope.launch {
                                         delay(ChartTuning.DOUBLE_TAP_MS)
-                                        tapped = tapAnchor(pos)
+                                        tapped = currentTapAnchor(pos)
                                     }
                                 }
                             }
@@ -419,8 +426,8 @@ private fun MainChart(data: ChartData, modifier: Modifier) {
                                         val start = inter.scrollStart
                                         val target = -velocity * 0.35f
                                         anim.animateTo(target, tween(600)) {
-                                            inter.scrollStart = inter.clampedLeadingEdge(start + value / widthPx * inter.visibleSeconds, data)
-                                            inter.updateFollowState(data)
+                                            inter.scrollStart = inter.clampedLeadingEdge(start + value / currentWidthPx * inter.visibleSeconds, currentData)
+                                            inter.updateFollowState(currentData)
                                         }
                                         momentum = null
                                     }
@@ -539,8 +546,10 @@ private fun SmallChart(data: ChartData, modifier: Modifier) {
             inter.updateFollowState(data)
         }
 
+        // The gesture handling runs for the chart's lifetime and reads the latest data and size.
+        val currentNavigate by rememberUpdatedState<(Float) -> Unit> { navigate(it) }
         Canvas(
-            Modifier.fillMaxSize().pointerInput(data) {
+            Modifier.fillMaxSize().pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     var scrubbing = false
@@ -552,11 +561,11 @@ private fun SmallChart(data: ChartData, modifier: Modifier) {
                         last = change.position
                         if (scrubbing || hypot((last - down.position).x, (last - down.position).y) >= 10.dp.toPx()) {
                             scrubbing = true
-                            navigate(last.x)
+                            currentNavigate(last.x)
                             change.consume()
                         }
                     }
-                    navigate(last.x)
+                    currentNavigate(last.x)
                 }
             },
         ) {
