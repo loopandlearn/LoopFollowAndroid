@@ -27,6 +27,7 @@ enum class OnboardingStep(val phaseTitle: String) {
     ALARMS("Alarms"),
     TAB_ORDER("Tabs"),
     NOTIFICATIONS("Notifications"),
+    BATTERY("Battery"),
     TELEMETRY("Privacy"),
     COMPLETION(""),
     ;
@@ -57,6 +58,8 @@ class OnboardingModel(
     val dexcom: DexcomSettingsModel,
     /** Whether the notification permission is still undecided; the notifications phase only shows then. */
     private val notificationsUndecided: Boolean,
+    /** Whether Android may still pause LoopFollow to save battery; the battery phase only shows then. */
+    private val batteryRestricted: Boolean,
     private val onClose: () -> Unit,
 ) {
     var step by mutableStateOf(OnboardingStep.WELCOME)
@@ -111,6 +114,7 @@ class OnboardingModel(
             if (alarmsOffered) steps += listOf(OnboardingStep.GENERAL_ALARMS, OnboardingStep.ALARMS)
             steps += OnboardingStep.TAB_ORDER
             if (notificationsUndecided) steps += OnboardingStep.NOTIFICATIONS
+            if (batteryRestricted) steps += OnboardingStep.BATTERY
             if (includeTelemetryStep) steps += OnboardingStep.TELEMETRY
             steps += OnboardingStep.COMPLETION
             return steps

@@ -35,7 +35,7 @@ object AlarmManager {
         // Honor "Snooze All": stop any current alarm and exit.
         val snoozeUntil = config.snoozeUntil
         if (snoozeUntil != null && snoozeUntil > now) {
-            if (Observable.currentAlarm.value != null) stopAlarm()
+            if (Observable.currentAlarm.value != null || AlarmSound.isPlaying) stopAlarm()
             return
         }
 
@@ -158,14 +158,20 @@ object AlarmManager {
         return am.mode == AudioManager.MODE_IN_CALL || am.mode == AudioManager.MODE_IN_COMMUNICATION
     }
 
+    /** Snoozes the active alarm for its snooze time (or [snoozeUnits]) and always stops the sound. */
     fun performSnooze(snoozeUnits: Int? = null) {
-        val alarmID = Observable.currentAlarm.value ?: return
+        val alarmID = Observable.currentAlarm.value
         val alarms = Storage.alarms.value
-        val alarm = alarms.firstOrNull { it.id == alarmID } ?: return
-        val units = snoozeUnits ?: alarm.snoozeDuration
-        if (units > 0) {
-            val until = nowSeconds() + units * alarm.type.snoozeTimeUnit.seconds
-            Storage.alarms.value = alarms.map { if (it.id == alarmID) it.copy(snoozedUntil = until) else it }
+        val alarm = alarms.firstOrNull { it.id == alarmID }
+        if (alarm == null) {
+            LogManager.log(LogManager.Category.ALARM, "Snooze pressed with no active alarm; stopping the sound")
+        } else {
+            val units = snoozeUnits ?: alarm.snoozeDuration
+            if (units > 0) {
+                val until = nowSeconds() + units * alarm.type.snoozeTimeUnit.seconds
+                Storage.alarms.value = alarms.map { if (it.id == alarmID) it.copy(snoozedUntil = until) else it }
+            }
+            LogManager.log(LogManager.Category.ALARM, "Alarm snoozed: ${alarm.type.raw}, ${units} units")
         }
         Observable.alarmSoundPlaying.value = false
         stopAlarm()

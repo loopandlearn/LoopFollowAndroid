@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loopandlearn.loopfollow.alarm.AlarmManager
+import com.loopandlearn.loopfollow.alarm.AlarmSound
 import com.loopandlearn.loopfollow.alarm.TimeUnit
 import com.loopandlearn.loopfollow.helpers.DateTimeUtils
 import com.loopandlearn.loopfollow.helpers.Localizer
@@ -116,7 +117,7 @@ fun SnoozerScreen() {
         Column(Modifier.fillMaxSize()) {
             AnimatedVisibility(showBar || globalSnooze, enter = slideInVertically() + fadeIn(), exit = slideOutVertically() + fadeOut()) {
                 SnoozerBar(globalSnooze, cfg.snoozeUntil, isNightNow(), onActivate = {
-                    if (activeAlarm != null) AlarmManager.performSnooze(snoozeUnits)
+                    if (activeAlarm != null || AlarmSound.isPlaying) AlarmManager.performSnooze(snoozeUnits)
                     Storage.alarmConfiguration.value = Storage.alarmConfiguration.value.copy(snoozeUntil = nowSeconds() + 3600)
                     interaction++
                 }, onAdjust = { minutes ->

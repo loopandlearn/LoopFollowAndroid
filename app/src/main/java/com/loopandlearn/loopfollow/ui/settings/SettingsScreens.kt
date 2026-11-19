@@ -2,14 +2,11 @@ package com.loopandlearn.loopfollow.ui.settings
 
 import androidx.compose.foundation.lazy.LazyListScope
 import android.content.Intent
-import android.net.Uri
-import android.os.PowerManager
 import android.os.Build
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.loopandlearn.loopfollow.alarm.AlarmPermissions
-import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +24,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -403,22 +401,27 @@ fun LazyListScope.rangeModeSections(onPicked: () -> Unit) {
 
 @Composable
 fun TabSettingsScreen(onBack: () -> Unit) {
-    subscribeTabState()
+    val order = rememberTabOrder()
     NavScreen("Tabs", onBack = onBack) {
-        FormList { tabOrderSections() }
+        FormList { tabOrderSections(order) }
     }
 }
 
+/**
+ * The tab order shown while a tab order screen is open: the tab bar items, then the menu items. The menu has no
+ * stored order, so the screen keeps its own order to let a menu item move past another one and up into the tab bar.
+ */
 @Composable
-fun subscribeTabState() {
-    TabItem.entries.forEach { Storage.positionValue(it).state() }
+fun rememberTabOrder(): MutableState<List<TabItem>> = remember {
+    val tabBar = Storage.orderedTabBarItems()
+    mutableStateOf(tabBar + TabItem.featureOrder.filter { it !in tabBar })
 }
 
-fun LazyListScope.tabOrderSections() {
-    val tabBar = Storage.orderedTabBarItems()
-    val order = tabBar + TabItem.featureOrder.filter { it !in tabBar }
+fun LazyListScope.tabOrderSections(state: MutableState<List<TabItem>>) {
+    val order = state.value
 
     fun persist(items: List<TabItem>) {
+        state.value = items
         items.forEachIndexed { index, item ->
             val position = when (index) {
                 0 -> TabPosition.POSITION1
@@ -645,8 +648,11 @@ fun BackgroundRefreshSettingsScreen(onBack: () -> Unit) {
     val colors = LocalAppColors.current
     val context = LocalContext.current
     val type = Storage.backgroundRefreshType.state()
-    val pm = context.getSystemService(PowerManager::class.java)
-    val unrestricted = pm.isIgnoringBatteryOptimizations(context.packageName)
+    var unrestricted by remember { mutableStateOf(AlarmPermissions.batteryUnrestricted(context)) }
+    LifecycleResumeEffect(Unit) {
+        unrestricted = AlarmPermissions.batteryUnrestricted(context)
+        onPauseOrDispose {}
+    }
     NavScreen("Background Refresh", onBack = onBack) {
         FormList {
             formSection(
@@ -664,7 +670,7 @@ fun BackgroundRefreshSettingsScreen(onBack: () -> Unit) {
             ) {
                 FormRow(onClick = {
                     if (!unrestricted) {
-                        context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}")))
+                        context.startActivity(AlarmPermissions.batteryRequestIntent(context))
                     }
                 }) {
                     FormText("Unrestricted battery use")

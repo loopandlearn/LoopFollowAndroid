@@ -34,6 +34,7 @@ import com.loopandlearn.loopfollow.ui.settings.DexcomSettingsScreen
 import com.loopandlearn.loopfollow.ui.settings.NightscoutSettingsScreen
 import com.loopandlearn.loopfollow.ui.settings.SettingsScreen
 import com.loopandlearn.loopfollow.ui.theme.LocalAppColors
+import kotlinx.coroutines.launch
 
 /** A screen that can be pushed on a tab's navigation stack. */
 sealed class Route {
@@ -58,6 +59,7 @@ sealed class Route {
     data object ImportExportSettings : Route()
     data object LiveActivitySettings : Route()
     data object Log : Route()
+    data object ShareLogs : Route()
     data object TreatmentDetail : Route()
     data class TrioMealEdit(val meal: com.loopandlearn.loopfollow.engine.TrioMealTreatment) : Route()
     data class LoopCarbEdit(val carb: com.loopandlearn.loopfollow.engine.LoopCarbTreatment) : Route()
@@ -157,6 +159,19 @@ private fun RouteContent(route: Route, nav: NavStack) {
         Route.ImportExportSettings -> com.loopandlearn.loopfollow.ui.settings.importexport.ImportExportSettingsScreen(nav, onBack = { nav.pop() })
         Route.LiveActivitySettings -> com.loopandlearn.loopfollow.ui.settings.LiveActivitySettingsScreen(onBack = { nav.pop() })
         Route.Log -> com.loopandlearn.loopfollow.ui.menu.LogScreen(onBack = { nav.pop() })
+        Route.ShareLogs -> {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            com.loopandlearn.loopfollow.ui.menu.ShareLogNoticeScreen(
+                onCancel = { nav.pop() },
+                onShare = { text ->
+                    scope.launch {
+                        com.loopandlearn.loopfollow.ui.menu.shareLogs(context, text)
+                        nav.pop()
+                    }
+                },
+            )
+        }
         Route.TreatmentDetail -> com.loopandlearn.loopfollow.ui.treatments.TreatmentDetailScreen(nav, onBack = { nav.pop() })
         // A sent edit returns to the treatment list, past the detail screen it was opened from.
         is Route.TrioMealEdit -> com.loopandlearn.loopfollow.ui.remote.TrioMealEditScreen(route.meal, onBack = { nav.pop() }, onSent = {

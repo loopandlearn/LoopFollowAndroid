@@ -43,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FindInPage
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -101,6 +102,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loopandlearn.loopfollow.R
+import com.loopandlearn.loopfollow.alarm.AlarmPermissions
 import com.loopandlearn.loopfollow.alarm.Alarm
 import com.loopandlearn.loopfollow.alarm.AlarmType
 import com.loopandlearn.loopfollow.alarm.DayNightOption
@@ -129,7 +131,7 @@ import com.loopandlearn.loopfollow.ui.settings.NightscoutSettingsModel
 import com.loopandlearn.loopfollow.ui.settings.rangeModeSections
 import com.loopandlearn.loopfollow.ui.settings.rememberDexcomSettingsModel
 import com.loopandlearn.loopfollow.ui.settings.rememberNightscoutSettingsModel
-import com.loopandlearn.loopfollow.ui.settings.subscribeTabState
+import com.loopandlearn.loopfollow.ui.settings.rememberTabOrder
 import com.loopandlearn.loopfollow.ui.settings.subscribeUnitsState
 import com.loopandlearn.loopfollow.ui.settings.tabOrderSections
 import com.loopandlearn.loopfollow.ui.settings.unitsGlucoseSection
@@ -167,7 +169,7 @@ fun OnboardingScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     val ns = rememberNightscoutSettingsModel()
     val dexcom = rememberDexcomSettingsModel()
-    val model = remember { OnboardingModel(ns, dexcom, notificationsUndecided(context), onClose) }
+    val model = remember { OnboardingModel(ns, dexcom, notificationsUndecided(context), !AlarmPermissions.batteryUnrestricted(context), onClose) }
     BackHandler(enabled = model.canGoBack) { model.goBack() }
 
     // The page covers the app; taps on its empty areas stay here.
@@ -201,6 +203,7 @@ fun OnboardingScreen(onClose: () -> Unit) {
                         OnboardingStep.ALARMS -> AlarmsStep(model)
                         OnboardingStep.TAB_ORDER -> TabOrderStep()
                         OnboardingStep.NOTIFICATIONS -> NotificationsStep(model)
+                        OnboardingStep.BATTERY -> BatteryStep(model)
                         OnboardingStep.TELEMETRY -> TelemetryStep(model)
                         OnboardingStep.COMPLETION -> CompletionStep(model)
                     }
@@ -732,10 +735,10 @@ private fun explanation(seed: SeedAlarm): String? {
 
 @Composable
 private fun TabOrderStep() {
-    subscribeTabState()
+    val order = rememberTabOrder()
     FormList {
         headerItem(Icons.Outlined.Dashboard, "Arrange your tabs", "Pick which features sit in the tab bar. You can always reach everything through the Menu.")
-        tabOrderSections()
+        tabOrderSections(order)
     }
 }
 
@@ -761,6 +764,37 @@ private fun NotificationsStep(model: OnboardingModel) {
                 requesting = true
                 notificationPermissionAsked.value = true
                 launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            TextButton(onClick = model::advance, enabled = !requesting) {
+                Text("Not now", color = colors.blue, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+/** ANDROID-DEVIATION: asks for unrestricted battery use, which Android needs to keep alarms on time; iOS has no such step. */
+@Composable
+private fun BatteryStep(model: OnboardingModel) {
+    val colors = LocalAppColors.current
+    val context = LocalContext.current
+    var requesting by remember { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { model.advance() }
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Icon(Icons.Filled.BatteryChargingFull, null, tint = colors.blue, modifier = Modifier.size(48.dp))
+            Text("Keep LoopFollow running", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.primaryText)
+            Text(
+                "To save battery, Android can pause apps that run in the background. If it pauses LoopFollow, your data stops updating and alarms can be late or missed.",
+                fontSize = 17.sp,
+                color = colors.secondaryText,
+            )
+            Text("Android asks next whether LoopFollow may run without battery restrictions. Choose Allow. You can change this any time in Settings > Background Refresh.", fontSize = 15.sp, color = colors.secondaryText)
+        }
+        Spacer(Modifier.weight(1f))
+        Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            PrimaryButton("Allow Unrestricted Battery Use", enabled = !requesting, modifier = Modifier.fillMaxWidth()) {
+                requesting = true
+                launcher.launch(AlarmPermissions.batteryRequestIntent(context))
             }
             TextButton(onClick = model::advance, enabled = !requesting) {
                 Text("Not now", color = colors.blue, fontSize = 17.sp, fontWeight = FontWeight.Medium)
