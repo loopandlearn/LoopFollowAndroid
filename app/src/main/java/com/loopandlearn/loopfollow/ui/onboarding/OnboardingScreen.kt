@@ -129,7 +129,7 @@ import com.loopandlearn.loopfollow.ui.settings.NightscoutSettingsModel
 import com.loopandlearn.loopfollow.ui.settings.rangeModeSections
 import com.loopandlearn.loopfollow.ui.settings.rememberDexcomSettingsModel
 import com.loopandlearn.loopfollow.ui.settings.rememberNightscoutSettingsModel
-import com.loopandlearn.loopfollow.ui.settings.subscribeTabState
+import com.loopandlearn.loopfollow.ui.settings.rememberTabOrder
 import com.loopandlearn.loopfollow.ui.settings.subscribeUnitsState
 import com.loopandlearn.loopfollow.ui.settings.tabOrderSections
 import com.loopandlearn.loopfollow.ui.settings.unitsGlucoseSection
@@ -732,10 +732,10 @@ private fun explanation(seed: SeedAlarm): String? {
 
 @Composable
 private fun TabOrderStep() {
-    subscribeTabState()
+    val order = rememberTabOrder()
     FormList {
         headerItem(Icons.Outlined.Dashboard, "Arrange your tabs", "Pick which features sit in the tab bar. You can always reach everything through the Menu.")
-        tabOrderSections()
+        tabOrderSections(order)
     }
 }
 

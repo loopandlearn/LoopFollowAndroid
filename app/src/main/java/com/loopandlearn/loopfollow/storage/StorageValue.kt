@@ -3,6 +3,7 @@ package com.loopandlearn.loopfollow.storage
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,9 @@ object Prefs {
  * A [secret] value is stored encrypted with [SecretCipher]. A plaintext value
  * found under a secret key is read as is and saved back encrypted. A value that
  * cannot be decrypted (the keystore key is gone) reads as the default.
+ *
+ * Reading [value] is tracked by Compose, so composables and lazy-list builders
+ * that read it are redrawn when it changes.
  */
 class StorageValue<T>(
     val key: String,
@@ -43,14 +47,18 @@ class StorageValue<T>(
 ) {
     private var undecryptableLogged = false
     private val state = MutableStateFlow(load())
+    private val version = mutableIntStateOf(0)
 
     val flow: StateFlow<T> = state.asStateFlow()
 
     var value: T
-        get() = state.value
+        get() {
+            version.intValue
+            return state.value
+        }
         set(newValue) {
             if (newValue == state.value && exists) return
-            state.value = newValue
+            update(newValue)
             persist(newValue)
         }
 
@@ -59,12 +67,17 @@ class StorageValue<T>(
 
     fun remove() {
         Prefs.prefs.edit().remove(key).apply()
-        state.value = defaultValue
+        update(defaultValue)
     }
 
     /** Re-reads the persisted value, used after an import replaces stored settings. */
     fun reload() {
-        state.value = load()
+        update(load())
+    }
+
+    private fun update(newValue: T) {
+        state.value = newValue
+        version.intValue++
     }
 
     private fun persist(newValue: T) {
@@ -112,14 +125,20 @@ class StorageValue<T>(
 inline fun <reified T> storageValue(key: String, defaultValue: T, secret: Boolean = false): StorageValue<T> =
     StorageValue(key, defaultValue, serializer(), secret)
 
-/** In-memory observable value. */
+/** In-memory observable value. Reading [value] is tracked by Compose, as for [StorageValue]. */
 class ObservableValue<T>(default: T) {
     private val state = MutableStateFlow(default)
+    private val version = mutableIntStateOf(0)
     val flow: StateFlow<T> = state.asStateFlow()
 
     var value: T
-        get() = state.value
+        get() {
+            version.intValue
+            return state.value
+        }
         set(newValue) {
+            if (newValue == state.value) return
             state.value = newValue
+            version.intValue++
         }
 }

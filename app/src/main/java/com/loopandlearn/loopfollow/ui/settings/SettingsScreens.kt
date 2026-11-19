@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -403,22 +404,27 @@ fun LazyListScope.rangeModeSections(onPicked: () -> Unit) {
 
 @Composable
 fun TabSettingsScreen(onBack: () -> Unit) {
-    subscribeTabState()
+    val order = rememberTabOrder()
     NavScreen("Tabs", onBack = onBack) {
-        FormList { tabOrderSections() }
+        FormList { tabOrderSections(order) }
     }
 }
 
+/**
+ * The tab order shown while a tab order screen is open: the tab bar items, then the menu items. The menu has no
+ * stored order, so the screen keeps its own order to let a menu item move past another one and up into the tab bar.
+ */
 @Composable
-fun subscribeTabState() {
-    TabItem.entries.forEach { Storage.positionValue(it).state() }
+fun rememberTabOrder(): MutableState<List<TabItem>> = remember {
+    val tabBar = Storage.orderedTabBarItems()
+    mutableStateOf(tabBar + TabItem.featureOrder.filter { it !in tabBar })
 }
 
-fun LazyListScope.tabOrderSections() {
-    val tabBar = Storage.orderedTabBarItems()
-    val order = tabBar + TabItem.featureOrder.filter { it !in tabBar }
+fun LazyListScope.tabOrderSections(state: MutableState<List<TabItem>>) {
+    val order = state.value
 
     fun persist(items: List<TabItem>) {
+        state.value = items
         items.forEachIndexed { index, item ->
             val position = when (index) {
                 0 -> TabPosition.POSITION1
