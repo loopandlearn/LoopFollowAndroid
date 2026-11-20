@@ -108,6 +108,11 @@ object APNSEnvironment {
 
 /** Sends one push through APNs; returns null on success, else the error message. */
 object APNSDelivery {
+    /** The largest payload APNs accepts. */
+    const val MAX_PAYLOAD_BYTES = 4096
+
+    fun tooLargeMessage(size: Int) = "The command is too large to send remotely ($size of $MAX_PAYLOAD_BYTES bytes)."
+
     suspend fun send(
         body: String,
         deviceToken: String,
@@ -119,6 +124,8 @@ object APNSDelivery {
         expiration: String? = null,
         collapseID: String? = null,
     ): String? {
+        val size = body.toByteArray(Charsets.UTF_8).size
+        if (size > MAX_PAYLOAD_BYTES) return tooLargeMessage(size).also { LogManager.log(LogManager.Category.APNS, it) }
         val jwt = JWTManager.getOrGenerateJWT(keyId, teamId, apnsKey)
             ?: return "Failed to generate JWT, please check that the APNS Key ID, APNS Key and Team ID are correct.".also {
                 LogManager.log(LogManager.Category.APNS, it)

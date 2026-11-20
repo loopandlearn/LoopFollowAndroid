@@ -5,9 +5,12 @@ import com.loopandlearn.loopfollow.helpers.nowSeconds
 import com.loopandlearn.loopfollow.nightscout.NightscoutUtils
 import com.loopandlearn.loopfollow.remote.APNSDelivery
 import com.loopandlearn.loopfollow.remote.RemoteCommandRefresh
+import com.loopandlearn.loopfollow.remote.profiles.ScheduledProfileSwitch
+import com.loopandlearn.loopfollow.remote.profiles.TherapyProfileValues
 import com.loopandlearn.loopfollow.remote.uninterruptedSend
 import com.loopandlearn.loopfollow.settings.importexport.LogRedactor
 import com.loopandlearn.loopfollow.storage.Storage
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -105,6 +108,46 @@ object LoopAPNSCommands {
         val fields = commandHeader(otp, "Remote Profile Switch: $name", now)
         fields["profile-switch"] = JsonPrimitive(name)
         fields["profile-switch-fingerprint"] = JsonPrimitive(fingerprint)
+        return fields
+    }
+
+    /**
+     * Creates the profile [name] when [originalName] is null. Otherwise updates (and, when the names differ, renames)
+     * [originalName], which Loop only changes while its values still have [baseFingerprint].
+     */
+    fun profileSaveCommandPayload(
+        name: String,
+        originalName: String?,
+        baseFingerprint: String?,
+        values: TherapyProfileValues,
+        otp: String,
+        now: Double = nowSeconds(),
+    ): MutableMap<String, JsonElement> {
+        val fields = commandHeader(otp, "Remote Profile Save: $name", now)
+        fields["profile-save"] = JsonPrimitive(name)
+        originalName?.let { fields["profile-save-original-name"] = JsonPrimitive(it) }
+        baseFingerprint?.let { fields["profile-save-base-fingerprint"] = JsonPrimitive(it) }
+        fields["profile-save-values"] = values.json
+        return fields
+    }
+
+    fun profileDeleteCommandPayload(name: String, fingerprint: String, otp: String, now: Double = nowSeconds()): MutableMap<String, JsonElement> {
+        val fields = commandHeader(otp, "Remote Profile Delete: $name", now)
+        fields["profile-delete"] = JsonPrimitive(name)
+        fields["profile-delete-fingerprint"] = JsonPrimitive(fingerprint)
+        return fields
+    }
+
+    /** Replaces the scheduled switches, which Loop only does while its list has [baseFingerprint]. */
+    fun scheduledSwitchesSaveCommandPayload(
+        entries: List<ScheduledProfileSwitch>,
+        baseFingerprint: String,
+        otp: String,
+        now: Double = nowSeconds(),
+    ): MutableMap<String, JsonElement> {
+        val fields = commandHeader(otp, "Remote Scheduled Switches Save", now)
+        fields["profile-scheduled-switches-save"] = JsonArray(entries.map { it.json })
+        fields["profile-scheduled-switches-base-fingerprint"] = JsonPrimitive(baseFingerprint)
         return fields
     }
 
@@ -215,13 +258,24 @@ object LoopAPNSService {
         return error
     }
 
-    /** Switches Loop to the saved profile [name]. Requires the Loop remote profile patch. */
-    suspend fun sendProfileSwitch(name: String, fingerprint: String, otp: String): String? {
-        log("Sending profile switch to $name fingerprint=$fingerprint")
-        val error = sendRemoteCommand(LoopAPNSCommands.profileSwitchCommandPayload(name, fingerprint, otp))
-        if (error == null) RemoteCommandRefresh.commandSent(RemoteCommandRefresh.Change.ProfileSwitch(name))
-        return error
+    /**
+     * Sends a profile command. [tooLargeMessage] explains a push over the APNs size limit; such a push is never sent.
+     * [description] goes to the log.
+     */
+    suspend fun sendProfileCommand(payload: Map<String, JsonElement>, description: String, tooLargeMessage: ((Int) -> String)? = null): String? {
+        log("Sending $description")
+        if (tooLargeMessage != null) {
+            val size = pushSize(payload)
+            if (size > APNSDelivery.MAX_PAYLOAD_BYTES) {
+                log("Command not sent: $size bytes")
+                return tooLargeMessage(size)
+            }
+        }
+        return sendRemoteCommand(payload)
     }
+
+    /** The size of the push [payload] makes. */
+    fun pushSize(payload: Map<String, JsonElement>): Int = LoopAPNSCommands.apnsBody(payload).toByteArray(Charsets.UTF_8).size
 
     suspend fun sendCarbsViaAPNS(payload: LoopAPNSPayload): String? {
         val finalPayload = LoopAPNSCommands.carbsCommandPayload(payload)

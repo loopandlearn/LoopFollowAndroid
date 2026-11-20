@@ -63,6 +63,8 @@ import com.loopandlearn.loopfollow.remote.RecommendedBolus
 import com.loopandlearn.loopfollow.remote.RemoteCommandMessage
 import com.loopandlearn.loopfollow.remote.TempTargetPresets
 import com.loopandlearn.loopfollow.remote.TrioRemote
+import com.loopandlearn.loopfollow.remote.profiles.ProfileRemote
+import androidx.compose.material.icons.outlined.Sync
 import com.loopandlearn.loopfollow.remote.remainingTimeText
 import com.loopandlearn.loopfollow.remote.uninterruptedSend
 import com.loopandlearn.loopfollow.storage.GlucoseDisplayUnit
@@ -116,6 +118,7 @@ fun Message(text: String) {
 private fun TrioRemoteControlScreen(nav: NavStack, onBack: (() -> Unit)?) {
     val override by Observable.override.flow.collectAsStateWithLifecycle()
     val tempTarget by Observable.tempTarget.flow.collectAsStateWithLifecycle()
+    val remoteCommands by Storage.remoteCommands.flow.collectAsStateWithLifecycle()
     NavScreen("Trio Remote Control", onBack = onBack) {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -125,6 +128,12 @@ private fun TrioRemoteControlScreen(nav: NavStack, onBack: (() -> Unit)?) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 CommandButton("Temp Target", Icons.Outlined.TrackChanges, tempTarget != null, Modifier.weight(1f)) { nav.push(Route.TrioTempTarget) }
                 CommandButton("Overrides", Icons.Outlined.Tune, override != null, Modifier.weight(1f)) { nav.push(Route.TrioOverride) }
+            }
+            if (ProfileRemote.TRIO.supportsAny(remoteCommands)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CommandButton("Profiles", Icons.Outlined.Sync, false, Modifier.weight(1f)) { nav.push(Route.TherapyProfiles(ProfileRemote.TRIO)) }
+                    Spacer(Modifier.weight(1f))
+                }
             }
         }
     }

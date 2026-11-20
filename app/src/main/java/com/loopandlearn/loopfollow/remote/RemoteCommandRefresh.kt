@@ -4,7 +4,9 @@ import com.loopandlearn.loopfollow.engine.MainEngine
 import com.loopandlearn.loopfollow.engine.TaskID
 import com.loopandlearn.loopfollow.engine.TaskScheduler
 import com.loopandlearn.loopfollow.helpers.LogManager
-import com.loopandlearn.loopfollow.remote.loop.LoopProfiles
+import com.loopandlearn.loopfollow.remote.profiles.ProfileCommand
+import com.loopandlearn.loopfollow.remote.profiles.ProfileCommands
+import com.loopandlearn.loopfollow.remote.profiles.TherapyProfiles
 import com.loopandlearn.loopfollow.storage.Observable
 import com.loopandlearn.loopfollow.storage.ObservableValue
 import kotlinx.coroutines.Job
@@ -12,7 +14,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-/** After a command is sent, fetches Nightscout early until the change shows up. */
+/**
+ * After a command is sent, fetches Nightscout early (the profile document for a profile command) until the change
+ * shows up.
+ */
 object RemoteCommandRefresh {
     sealed class Change(val name: String) {
         data object Override : Change("override")
@@ -20,10 +25,11 @@ object RemoteCommandRefresh {
         data class Bolus(val units: Double) : Change("bolus")
         data class Meal(val grams: Double, val bolus: Double) : Change("meal")
 
-        // ANDROID-DEVIATION: Edits, deletes and profile switches are followed by early Nightscout fetches too;
-        // Android cannot receive the AID app's confirmation push, so Nightscout is where their outcome shows.
+        data class Profile(val command: ProfileCommand) : Change("profile change")
+
+        // ANDROID-DEVIATION: Carb entry edits and deletes are followed by early Nightscout fetches too; Android cannot
+        // receive the AID app's confirmation push, so Nightscout is where their outcome shows.
         data object CarbEntry : Change("carb entry change")
-        data class ProfileSwitch(val profileName: String) : Change("profile switch")
     }
 
     /** Counts carb entry edits and deletes whose early fetches have finished, so the Treatments list can reload. */
@@ -46,9 +52,12 @@ object RemoteCommandRefresh {
                     break
                 }
                 val now = System.currentTimeMillis()
-                if (change is Change.ProfileSwitch) TaskScheduler.rescheduleTask(TaskID.PROFILE, now)
-                TaskScheduler.rescheduleTask(TaskID.TREATMENTS, now)
-                TaskScheduler.rescheduleTask(TaskID.DEVICE_STATUS, now)
+                if (change is Change.Profile) {
+                    TaskScheduler.rescheduleTask(TaskID.PROFILE, now)
+                } else {
+                    TaskScheduler.rescheduleTask(TaskID.TREATMENTS, now)
+                    TaskScheduler.rescheduleTask(TaskID.DEVICE_STATUS, now)
+                }
             }
             if (change == Change.CarbEntry) carbEntryRefreshes.value += 1
         }
@@ -77,7 +86,10 @@ object RemoteCommandRefresh {
             val before = carbs().toSet()
             ({ carbs().toSet() != before })
         }
-        is Change.ProfileSwitch -> ({ LoopProfiles.current.value?.activeName == change.profileName })
+        is Change.Profile -> {
+            val before = TherapyProfiles.current.value
+            ({ ProfileCommands.arrived(change.command, before, TherapyProfiles.current.value) })
+        }
     }
 
     private fun newEntry(entries: () -> List<Pair<Double, Double>>, value: Double?, tolerance: Double): () -> Boolean {
