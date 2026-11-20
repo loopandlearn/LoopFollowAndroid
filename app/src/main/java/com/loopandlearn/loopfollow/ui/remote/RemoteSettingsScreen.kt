@@ -52,8 +52,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.loopandlearn.loopfollow.helpers.DateTimeUtils
 import com.loopandlearn.loopfollow.helpers.LogManager
 import com.loopandlearn.loopfollow.remote.RemoteDiagnostics
@@ -70,6 +68,7 @@ import com.loopandlearn.loopfollow.ui.components.MenuPickerRow
 import com.loopandlearn.loopfollow.ui.components.NavScreen
 import com.loopandlearn.loopfollow.ui.components.ToggleRow
 import com.loopandlearn.loopfollow.ui.components.formSection
+import com.loopandlearn.loopfollow.ui.components.ScanQRCode
 import com.loopandlearn.loopfollow.ui.theme.LocalAppColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -118,8 +117,8 @@ fun RemoteSettingsScreen(onBack: () -> Unit, onImportExport: () -> Unit) {
     }
     val validation: (String) -> Unit = { alert = RemoteAlert("Validation Error", it) }
 
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val code = result.contents
+    val scanner = rememberLauncherForActivityResult(ScanQRCode()) { result ->
+        val code = result
         if (code != null) {
             Storage.loopAPNSQrCodeURL.value = code
             Storage.device.value = "Loop"
@@ -245,10 +244,7 @@ fun RemoteSettingsScreen(onBack: () -> Unit, onImportExport: () -> Unit) {
                     FormRow {
                         Button(
                             onClick = {
-                                scanner.launch(
-                                    ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setBeepEnabled(false)
-                                        .setOrientationLocked(true).setPrompt("Scan QR Code from Loop App"),
-                                )
+                                scanner.launch("Scan QR Code from Loop App")
                             },
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = colors.blue, contentColor = Color.White),

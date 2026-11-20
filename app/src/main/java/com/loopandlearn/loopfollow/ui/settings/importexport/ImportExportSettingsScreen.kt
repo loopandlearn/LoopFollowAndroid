@@ -52,9 +52,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.zxing.client.android.Intents
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.loopandlearn.loopfollow.settings.importexport.QRCodeGenerator
 import com.loopandlearn.loopfollow.ui.NavStack
 import com.loopandlearn.loopfollow.ui.components.FormDivider
@@ -64,6 +61,7 @@ import com.loopandlearn.loopfollow.ui.components.FormText
 import com.loopandlearn.loopfollow.ui.components.NavScreen
 import com.loopandlearn.loopfollow.ui.components.clickableNoRipple
 import com.loopandlearn.loopfollow.ui.components.formSection
+import com.loopandlearn.loopfollow.ui.components.ScanQRCode
 import com.loopandlearn.loopfollow.ui.theme.LocalAppColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -82,8 +80,8 @@ private val ImportExportSettingsViewModel.ExportType.icon: ImageVector
 fun ImportExportSettingsScreen(nav: NavStack, onBack: () -> Unit) {
     val viewModel = remember { ImportExportSettingsViewModel() }
 
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
-        viewModel.handleQRCodeScanResult(result.contents)
+    val scanner = rememberLauncherForActivityResult(ScanQRCode()) { contents ->
+        viewModel.handleQRCodeScanResult(contents)
     }
 
     when {
@@ -104,15 +102,7 @@ fun ImportExportSettingsScreen(nav: NavStack, onBack: () -> Unit) {
             )
         }
         else -> ImportExportList(viewModel, onBack) {
-            scanner.launch(
-                ScanOptions()
-                    .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                    .setBeepEnabled(false)
-                    .setOrientationLocked(true)
-                    .setPrompt("")
-                    // ANDROID-DEVIATION: Reads UTF-8 so non-ASCII alarm names in iPhone-made codes come through.
-                    .addExtra(Intents.Scan.CHARACTER_SET, "UTF-8"),
-            )
+            scanner.launch("")
         }
     }
 }
