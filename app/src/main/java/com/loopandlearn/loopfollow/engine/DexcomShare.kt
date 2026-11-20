@@ -1,5 +1,7 @@
 package com.loopandlearn.loopfollow.engine
 
+import com.loopandlearn.loopfollow.helpers.LogManager
+import com.loopandlearn.loopfollow.helpers.nowSeconds
 import com.loopandlearn.loopfollow.nightscout.NightscoutUtils
 import com.loopandlearn.loopfollow.storage.Prefs
 import com.loopandlearn.loopfollow.storage.Storage
@@ -39,6 +41,22 @@ class ShareClient(val username: String, val password: String, private val shareS
 
     private suspend fun ensureToken() {
         if (token != null) return
+        ShareLoginBackoff.blockedCode(username, password, shareServer)?.let { throw ShareError.LoginError(it) }
+        try {
+            login()
+        } catch (e: ShareError.LoginError) {
+            if (ShareLoginBackoff.rejectsCredentials(e.errorCode)) {
+                ShareLoginBackoff.block(username, password, shareServer, e.errorCode)
+                LogManager.log(
+                    LogManager.Category.DEXCOM,
+                    "Dexcom Share login rejected (${e.errorCode}); no further login with these credentials for 15 minutes to avoid an account lockout",
+                )
+            }
+            throw e
+        }
+    }
+
+    private suspend fun login() {
         val accountId = loginCall(
             AUTHENTICATE_PATH,
             buildJsonObject {
@@ -47,6 +65,7 @@ class ShareClient(val username: String, val password: String, private val shareS
                 put("applicationId", APPLICATION_ID)
             },
         )
+        if (accountId == EMPTY_ID) throw ShareError.LoginError("AccountNotFound")
         token = loginCall(
             LOGIN_BY_ID_PATH,
             buildJsonObject {
@@ -132,6 +151,7 @@ class ShareClient(val username: String, val password: String, private val shareS
         private const val LOGIN_BY_ID_PATH = "/ShareWebServices/Services/General/LoginPublisherAccountById"
         private const val LATEST_GLUCOSE_PATH = "/ShareWebServices/Services/Publisher/ReadPublisherLatestGlucoseValues"
         private const val MAX_REAUTH_ATTEMPTS = 2
+        private const val EMPTY_ID = "00000000-0000-0000-0000-000000000000"
 
         private val TREND_MAP = mapOf(
             "" to 0, "DoubleUp" to 1, "SingleUp" to 2, "FortyFiveUp" to 3, "Flat" to 4,
@@ -143,6 +163,38 @@ class ShareClient(val username: String, val password: String, private val shareS
             "FortyFiveDown", "SingleDown", "DoubleDown", "NOT COMPUTABLE", "RATE OUT OF RANGE",
         )
     }
+}
+
+/**
+ * Share locks an account after repeated bad logins, so a login it rejects for the account or password blocks
+ * further logins with the same credentials for [INTERVAL_SECONDS]. Other failures are tried again at the next fetch.
+ */
+object ShareLoginBackoff {
+    const val INTERVAL_SECONDS = 15 * 60.0
+
+    private class Block(val until: Double, val code: String)
+
+    private val blocks = mutableMapOf<String, Block>()
+
+    private fun key(username: String, password: String, server: String) = "$server\n$username\n$password"
+
+    /** The rejection code while logins with these credentials are blocked, else null. */
+    @Synchronized
+    fun blockedCode(username: String, password: String, server: String, now: Double = nowSeconds()): String? {
+        val block = blocks[key(username, password, server)] ?: return null
+        return if (now < block.until) block.code else null
+    }
+
+    @Synchronized
+    fun block(username: String, password: String, server: String, code: String, now: Double = nowSeconds()) {
+        blocks[key(username, password, server)] = Block(now + INTERVAL_SECONDS, code)
+    }
+
+    /** Share's codes for an unknown account, a wrong password or too many attempts. */
+    fun rejectsCredentials(code: String) = code in setOf(
+        "AccountPasswordInvalid", "AccountNotFound", "SSO_AuthenticatePasswordInvalid",
+        "SSO_AuthenticateAccountNotFound", "SSO_AuthenticateMaxAttemptsExceeed", "SSO_AuthenticateMaxAttemptsExceeded",
+    )
 }
 
 /** Holds the Share client built from the stored credentials. */
