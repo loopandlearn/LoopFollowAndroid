@@ -64,7 +64,7 @@ Each entry: **title**: what differs and why. Code: Android location. iOS: the co
 ## Import/Export
 
 - **Nightscout re-check after import**: after importing Nightscout settings the app verifies the site and refreshes, so the new site is picked up at once. Code: `ui/settings/importexport/ImportExportSettingsViewModel.kt`. iOS: `Settings/ImportExport/ImportExportSettingsViewModel.swift`.
-- **Scanner character set**: the QR scanner reads UTF-8, so non-ASCII alarm names from iPhone-made codes come through. Code: `ui/settings/importexport/ImportExportSettingsScreen.kt`, `ui/onboarding/ConnectImportStep.kt`. iOS: `Helpers/Views/SimpleQRCodeScannerView.swift`.
+- **QR scanner**: QR codes are read with ML Kit's on-device barcode model from a 1080p CameraX stream, which reads the dense remote settings code (APNs key included) from a phone screen. Code: `ui/components/QRScanner.kt`, used by `ui/settings/importexport/ImportExportSettingsScreen.kt`, `ui/onboarding/ConnectImportStep.kt` and `ui/remote/RemoteSettingsScreen.kt`. iOS: `Helpers/Views/SimpleQRCodeScannerView.swift`.
 
 ## Ongoing notification
 

@@ -21,13 +21,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.zxing.client.android.Intents
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.loopandlearn.loopfollow.ui.components.FormList
 import com.loopandlearn.loopfollow.ui.components.FormRow
 import com.loopandlearn.loopfollow.ui.components.FormText
 import com.loopandlearn.loopfollow.ui.components.formSection
+import com.loopandlearn.loopfollow.ui.components.ScanQRCode
 import com.loopandlearn.loopfollow.ui.settings.importexport.ImportConfirmationView
 import com.loopandlearn.loopfollow.ui.settings.importexport.ImportExportSettingsViewModel
 import com.loopandlearn.loopfollow.ui.theme.LocalAppColors
@@ -37,7 +35,7 @@ import com.loopandlearn.loopfollow.ui.theme.LocalAppColors
 fun ConnectImportStep(model: OnboardingModel) {
     val colors = LocalAppColors.current
     val importVM = remember { ImportExportSettingsViewModel() }
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { importVM.handleQRCodeScanResult(it.contents) }
+    val scanner = rememberLauncherForActivityResult(ScanQRCode()) { importVM.handleQRCodeScanResult(it) }
     LaunchedEffect(importVM.qrCodeErrorMessage) {
         if (importVM.qrCodeErrorMessage.contains("Successfully imported")) model.didImportSettings = true
     }
@@ -61,11 +59,7 @@ fun ConnectImportStep(model: OnboardingModel) {
                 }
                 formSection {
                     FormRow(onClick = {
-                        scanner.launch(
-                            // ANDROID-DEVIATION: Reads UTF-8 so non-ASCII alarm names in iPhone-made codes come through.
-                            ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setBeepEnabled(false)
-                                .setOrientationLocked(true).setPrompt("").addExtra(Intents.Scan.CHARACTER_SET, "UTF-8"),
-                        )
+                        scanner.launch("")
                     }) {
                         Icon(Icons.Outlined.QrCodeScanner, null, tint = colors.blue, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))

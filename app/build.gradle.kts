@@ -8,7 +8,7 @@ plugins {
 }
 
 // The release version. versionCode grows with it (1.2.3 -> 10203), so every release installs over the one before.
-val lfVersion = "0.1.4"
+val lfVersion = "0.1.5"
 val lfVersionCode = lfVersion.split(".").map { it.toInt() }.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
 
 // A second or third LoopFollow next to the first one, each with its own settings: -PlfAppSuffix=Second gives the
@@ -87,7 +87,11 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     // FragmentActivity from 1.3 on accepts Activity Result API request codes; biometric alone pulls in an older one.
     implementation("androidx.fragment:fragment-ktx:1.8.5")
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
     implementation("io.socket:socket.io-client:2.1.1") {
         exclude(group = "org.json", module = "json")
     }
