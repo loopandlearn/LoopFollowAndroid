@@ -175,3 +175,18 @@ object APNSDelivery {
         else -> "Unexpected status code: $status."
     }
 }
+
+/** The message shown when a remote command cannot be sent because part of the setup is missing. */
+object RemoteSetupMessage {
+    /** Null when nothing is missing. */
+    fun missing(app: String, apnsKey: Boolean, teamId: Boolean, device: Boolean, other: List<String> = emptyList()): String? {
+        val items = buildList {
+            if (!apnsKey) add("the APNS Key ID and APNS Key in Remote Settings")
+            addAll(other)
+            if (!teamId) add("the Team ID, which comes from the $app profile in Nightscout")
+            if (!device) add("the $app device token and bundle ID, which come from the $app profile in Nightscout")
+        }
+        if (items.isEmpty()) return null
+        return "Remote commands are not set up. Missing: ${items.joinToString("; ")}."
+    }
+}

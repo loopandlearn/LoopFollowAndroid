@@ -5,6 +5,7 @@ import com.loopandlearn.loopfollow.helpers.nowSeconds
 import com.loopandlearn.loopfollow.nightscout.NightscoutUtils
 import com.loopandlearn.loopfollow.remote.APNSDelivery
 import com.loopandlearn.loopfollow.remote.RemoteCommandRefresh
+import com.loopandlearn.loopfollow.remote.RemoteSetupMessage
 import com.loopandlearn.loopfollow.remote.profiles.ScheduledProfileSwitch
 import com.loopandlearn.loopfollow.remote.profiles.TherapyProfileValues
 import com.loopandlearn.loopfollow.remote.uninterruptedSend
@@ -229,8 +230,14 @@ object LoopAPNSService {
     }
 
     private suspend fun sendRemoteCommand(payload: Map<String, JsonElement>): String? {
-        if (!validateSetup()) return "Loop APNS Configuration not valid".also { log(it) }
         val creds = effectiveCredentials()
+        RemoteSetupMessage.missing(
+            app = "Loop",
+            apnsKey = creds.keyId.isNotEmpty() && creds.apnsKey.isNotEmpty(),
+            teamId = creds.teamId.isNotEmpty(),
+            device = Storage.deviceToken.value.isNotEmpty() && Storage.bundleId.value.isNotEmpty(),
+            other = if (Storage.loopAPNSQrCodeURL.value.isEmpty()) listOf("the Loop QR code in Remote Settings") else emptyList(),
+        )?.let { return it.also { log(it) } }
         return sendAPNSNotification(Storage.deviceToken.value, Storage.bundleId.value, creds, payload)
     }
 

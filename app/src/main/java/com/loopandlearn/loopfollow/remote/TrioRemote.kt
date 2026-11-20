@@ -193,18 +193,17 @@ object TrioRemote {
         val keyId = Storage.remoteKeyId.value
         val teamId = Storage.teamId.value ?: ""
 
-        val missing = buildList {
-            if (sharedSecret.isEmpty()) add("sharedSecret")
-            if (apnsKey.isEmpty()) add("apnsKey")
-            if (keyId.isEmpty()) add("keyId")
-            if (user.isEmpty()) add("user")
-            if (deviceToken.isEmpty()) add("deviceToken")
-            if (bundleId.isEmpty()) add("bundleId")
-            if (teamId.isEmpty()) add("teamId")
-        }
-        if (missing.isNotEmpty()) {
-            return "Missing required fields for command: ${missing.joinToString(", ")}".also { LogManager.log(LogManager.Category.APNS, it) }
-        }
+        val missing = RemoteSetupMessage.missing(
+            app = "Trio",
+            apnsKey = apnsKey.isNotEmpty() && keyId.isNotEmpty(),
+            teamId = teamId.isNotEmpty(),
+            device = deviceToken.isNotEmpty() && bundleId.isNotEmpty(),
+            other = buildList {
+                if (sharedSecret.isEmpty()) add("Shared Secret in Remote Settings")
+                if (user.isEmpty()) add("User in Remote Settings")
+            },
+        )
+        if (missing != null) return missing.also { LogManager.log(LogManager.Category.APNS, it) }
         val errors = validateCredentials(keyId, teamId, apnsKey)
         if (errors.isNotEmpty()) {
             return "Credential validation failed: ${errors.joinToString(", ")}".also { LogManager.log(LogManager.Category.APNS, it) }
