@@ -13,6 +13,7 @@ import com.loopandlearn.loopfollow.settings.importexport.CombinedSettingsExport
 import com.loopandlearn.loopfollow.settings.importexport.DexcomSettingsExport
 import com.loopandlearn.loopfollow.settings.importexport.LogRedactor
 import com.loopandlearn.loopfollow.settings.importexport.NightscoutSettingsExport
+import com.loopandlearn.loopfollow.settings.importexport.RemoteKeyAdoption
 import com.loopandlearn.loopfollow.settings.importexport.RemoteSettingsExport
 import com.loopandlearn.loopfollow.settings.importexport.SettingsMigrationManager
 import com.loopandlearn.loopfollow.storage.RemoteType
@@ -145,6 +146,12 @@ class ImportExportSettingsViewModel {
             apns.applyToStorage()
             importedComponents += "APNS settings"
             LogManager.log(LogManager.Category.GENERAL, "APNS settings imported from $source (version: ${apns.version}, keyId: ${apns.keyId})")
+            when (RemoteKeyAdoption.apply()) {
+                RemoteKeyAdoption.Decision.ADOPT -> importedComponents += "APNS key taken as the remote command key"
+                RemoteKeyAdoption.Decision.OTHER_TEAM ->
+                    importedComponents += "APNS key not used for remote commands (it belongs to another Apple team than Loop/Trio)"
+                RemoteKeyAdoption.Decision.REMOTE_KEY_SET, RemoteKeyAdoption.Decision.NO_KEY -> Unit
+            }
         }
 
         if (importedComponents.isNotEmpty()) {

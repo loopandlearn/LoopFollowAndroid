@@ -433,15 +433,20 @@ data class RemoteSettingsExport(
 
 // MARK: - APNS Settings Export
 
-/** LoopFollow's own APNs key, used by the iOS app. Android imports and exports it unchanged. */
+/**
+ * LoopFollow's own APNs key and, when known, its Apple team. Android signs remote commands only with the Remote
+ * Settings key; an imported key fills those fields when they are empty (see [RemoteKeyAdoption]).
+ */
 data class APNSSettingsExport(
     val version: String,
     val keyId: String,
     val apnsKey: String,
+    val teamId: String? = null,
 ) {
     fun applyToStorage() {
         Storage.lfKeyId.value = keyId
         Storage.lfApnsKey.value = LoopAPNSService.validateAndFixAPNSKey(apnsKey)
+        Storage.lfTeamId.value = teamId?.takeIf { it.isNotEmpty() }
     }
 
     fun hasValidSettings(): Boolean = APNsCredentialValidator.isFullyConfigured(keyId, apnsKey)
@@ -450,6 +455,7 @@ data class APNSSettingsExport(
         put("version", version)
         put("keyId", keyId)
         put("apnsKey", apnsKey)
+        teamId?.let { put("teamId", it) }
     }
 
     companion object {
@@ -457,13 +463,44 @@ data class APNSSettingsExport(
             version = SettingsWire.appVersion(),
             keyId = Storage.lfKeyId.value,
             apnsKey = Storage.lfApnsKey.value,
+            teamId = Storage.lfTeamId.value,
         )
 
         fun fromJson(obj: JsonObject) = APNSSettingsExport(
             version = obj.requireString("version"),
             keyId = obj.requireString("keyId"),
             apnsKey = obj.requireString("apnsKey"),
+            teamId = obj.optionalString("teamId"),
         )
+    }
+}
+
+/**
+ * Whether an imported LoopFollow APNs key becomes the remote command key. The key can sign for Loop or Trio only
+ * when it belongs to their Apple team, so it is taken when the remote key is empty and the teams match or either
+ * team is unknown; APNs rejects a key from another team.
+ */
+object RemoteKeyAdoption {
+    enum class Decision { ADOPT, REMOTE_KEY_SET, NO_KEY, OTHER_TEAM }
+
+    fun decide(remoteKeyId: String, remoteApnsKey: String, lfKeyId: String, lfApnsKey: String, lfTeamId: String?, remoteTeamId: String?): Decision = when {
+        remoteKeyId.isNotEmpty() || remoteApnsKey.isNotEmpty() -> Decision.REMOTE_KEY_SET
+        !APNsCredentialValidator.isFullyConfigured(lfKeyId, lfApnsKey) -> Decision.NO_KEY
+        !lfTeamId.isNullOrEmpty() && !remoteTeamId.isNullOrEmpty() && lfTeamId != remoteTeamId -> Decision.OTHER_TEAM
+        else -> Decision.ADOPT
+    }
+
+    /** Applies the decision to storage and returns it. */
+    fun apply(): Decision {
+        val decision = decide(
+            Storage.remoteKeyId.value, Storage.remoteApnsKey.value,
+            Storage.lfKeyId.value, Storage.lfApnsKey.value, Storage.lfTeamId.value, Storage.teamId.value,
+        )
+        if (decision == Decision.ADOPT) {
+            Storage.remoteKeyId.value = Storage.lfKeyId.value
+            Storage.remoteApnsKey.value = Storage.lfApnsKey.value
+        }
+        return decision
     }
 }
 

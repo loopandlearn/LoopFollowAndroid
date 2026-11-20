@@ -18,6 +18,8 @@ object Storage {
     val remoteKeyId = storageValue("remoteKeyId", "")
     val lfApnsKey = storageValue("lfApnsKey", "", secret = true)
     val lfKeyId = storageValue("lfKeyId", "")
+    /** The Apple team of [lfApnsKey], when the import carried it. */
+    val lfTeamId = storageValue<String?>("lfTeamId", null)
     val bundleId = storageValue("bundleId", "")
     val user = storageValue("user", "")
     /** Remote command types the AID app advertises in its Nightscout profile. */
