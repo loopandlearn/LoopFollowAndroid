@@ -89,8 +89,7 @@ import com.loopandlearn.loopfollow.remote.RemoteCommandMessage
 import com.loopandlearn.loopfollow.remote.loop.LoopAPNSPayload
 import com.loopandlearn.loopfollow.remote.loop.LoopAPNSService
 import com.loopandlearn.loopfollow.remote.loop.LoopCommands
-import com.loopandlearn.loopfollow.remote.loop.LoopProfile
-import com.loopandlearn.loopfollow.remote.loop.LoopProfiles
+import com.loopandlearn.loopfollow.remote.profiles.ProfileRemote
 import com.loopandlearn.loopfollow.remote.loop.TOTPGenerator
 import com.loopandlearn.loopfollow.remote.loop.TOTPService
 import com.loopandlearn.loopfollow.remote.loop.dateUsingCurrentSeconds
@@ -148,6 +147,7 @@ fun LoopRemoteScreen(nav: NavStack, onBack: (() -> Unit)?) {
     val colors = LocalAppColors.current
     val override by Observable.override.flow.collectAsStateWithLifecycle()
     val loopRemoteCommands by Storage.loopRemoteCommands.flow.collectAsStateWithLifecycle()
+    val remoteCommands by Storage.remoteCommands.flow.collectAsStateWithLifecycle()
     val keyId by Storage.remoteKeyId.flow.collectAsStateWithLifecycle()
     val apnsKey by Storage.remoteApnsKey.flow.collectAsStateWithLifecycle()
     val teamId by Storage.teamId.flow.collectAsStateWithLifecycle()
@@ -167,13 +167,13 @@ fun LoopRemoteScreen(nav: NavStack, onBack: (() -> Unit)?) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     CommandButton("Overrides", Icons.Outlined.Tune, override != null, Modifier.weight(1f)) { nav.push(Route.LoopOverrides) }
-                    if (loopRemoteCommands.contains(LoopProfile.SWITCH_COMMAND)) {
-                        CommandButton("Profiles", Icons.Outlined.Sync, false, Modifier.weight(1f)) { nav.push(Route.LoopProfiles) }
+                    if (ProfileRemote.LOOP.supportsAny(ProfileRemote.LOOP.acceptedCommands(remoteCommands, loopRemoteCommands))) {
+                        CommandButton("Profiles", Icons.Outlined.Sync, false, Modifier.weight(1f)) { nav.push(Route.TherapyProfiles(ProfileRemote.LOOP)) }
                     } else {
                         UnavailableCommandButton("Profiles", Icons.Outlined.Sync, Modifier.weight(1f)) {
                             info = RemoteAlert(
                                 "Profiles Not Available",
-                                "Switching Loop profiles from LoopFollow needs Loop built with the Profile Save & Load customization, added with the Loop and Learn Customization Select script.",
+                                "Loop has not said it accepts profile commands. It does once it has a pump and a maximum basal rate set up and can receive remote commands. An older Loop also needs the Profile Save & Load customization, added with the Loop and Learn Customization Select script.",
                             )
                         }
                     }
@@ -976,146 +976,4 @@ private fun OverrideActivationDialog(preset: OverridePreset, onActivate: (Double
             }
         }
     }
-}
-
-@Composable
-fun LoopProfilesScreen(nav: NavStack, onBack: () -> Unit) {
-    val colors = LocalAppColors.current
-    val profileSet by LoopProfiles.current.flow.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { LoopProfiles.refresh() }
-    NavScreen("Remote Profiles", onBack = onBack) {
-        FormList {
-            val set = profileSet
-            if (set != null && set.profiles.isNotEmpty()) {
-                formSection(header = "Saved profiles", footer = set.uploadedAt?.let { "Uploaded by Loop ${DateTimeUtils.formattedDate(it)}." }) {
-                    set.profiles.forEachIndexed { i, profile ->
-                        if (i > 0) FormDivider()
-                        FormRow(onClick = { nav.push(Route.LoopProfilePreview(profile.name)) }) {
-                            FormText(profile.name, modifier = Modifier.weight(1f))
-                            if (profile.name == set.activeName) {
-                                Text("Active", fontSize = 12.sp, color = colors.green)
-                                Spacer(Modifier.width(4.dp))
-                            }
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = colors.gray.copy(alpha = 0.6f))
-                        }
-                    }
-                }
-            } else {
-                formSection {
-                    FormRow {
-                        Text(
-                            "No saved profiles found. Profiles are saved in Loop under Settings → Profiles.",
-                            fontSize = 17.sp,
-                            fontStyle = FontStyle.Italic,
-                            color = colors.secondaryText,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** Schedule start times are offsets from midnight in the profile's time zone. */
-private fun scheduleTimeText(context: android.content.Context, seconds: Int): String {
-    val formatter = DateFormat.getTimeFormat(context)
-    formatter.timeZone = TimeZone.getTimeZone("UTC")
-    return formatter.format(Date(seconds * 1000L))
-}
-
-@Composable
-fun LoopProfilePreviewScreen(name: String, onBack: () -> Unit) {
-    val colors = LocalAppColors.current
-    val context = LocalContext.current
-    val activity = context as? FragmentActivity
-    val scope = rememberCoroutineScope()
-    val profileSet by LoopProfiles.current.flow.collectAsStateWithLifecycle()
-    var alert by remember { mutableStateOf<RemoteAlert?>(null) }
-    var isSending by remember { mutableStateOf(false) }
-    val profile = profileSet?.profiles?.firstOrNull { it.name == name }
-    val isActive = profileSet?.activeName == name
-
-    fun presentFailure(message: String) {
-        scope.launch {
-            // A result that arrives at once comes while the confirmation dialog is still closing.
-            delay(500)
-            alert = RemoteAlert("Profile Not Activated", message)
-        }
-    }
-
-    // ANDROID-DEVIATION: A sent switch shows "Command Sent" and returns to the list, where the active profile shows once
-    // Loop uploads it; Android cannot receive Loop's confirmation push, so there is no waiting state or reply alert.
-    fun send(profile: LoopProfile) {
-        isSending = true
-        scope.launch {
-            val error = LoopCommands.sendProfileSwitch(profile)
-            isSending = false
-            if (error == null) {
-                alert = RemoteAlert("Command Sent", RemoteCommandMessage.SENT, onDismiss = onBack)
-            } else {
-                logAPNS("Profile switch not sent: $error")
-                presentFailure(error)
-            }
-        }
-    }
-
-    NavScreen(name, onBack = onBack) {
-        if (profile == null) {
-            Message("No saved profiles found. Profiles are saved in Loop under Settings → Profiles.")
-            return@NavScreen
-        }
-        val unitText = UnitSettingsStore.glucoseUnit.raw
-        fun glucoseText(value: Double) = Localizer.formatQuantity(profile.mgdl(value))
-        Column(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f)) {
-                FormList {
-                    formSection(footer = "Loop writes the basal rates to the pump when the profile is activated.") {
-                        FormRow { FormText("Review the profile before activating it in Loop.") }
-                    }
-                    formSection(header = "Correction Range") {
-                        profile.correctionRange.forEachIndexed { i, item ->
-                            if (i > 0) FormDivider()
-                            LabeledValueRow(scheduleTimeText(context, item.seconds), "${glucoseText(item.low)} – ${glucoseText(item.high)} $unitText")
-                        }
-                    }
-                    formSection(header = "Carb Ratios") {
-                        profile.carbRatio.forEachIndexed { i, item ->
-                            if (i > 0) FormDivider()
-                            LabeledValueRow(scheduleTimeText(context, item.seconds), "${Localizer.formatToLocalizedString(item.value, 1)} g/U")
-                        }
-                    }
-                    formSection(header = "Basal Rates") {
-                        profile.basal.forEachIndexed { i, item ->
-                            if (i > 0) FormDivider()
-                            LabeledValueRow(scheduleTimeText(context, item.seconds), "${Localizer.formatToLocalizedString(item.value, 3)} U/hr")
-                        }
-                        FormDivider()
-                        FormRow {
-                            FormText("Total", weight = FontWeight.Bold)
-                            Spacer(Modifier.weight(1f))
-                            FormText("${Localizer.formatToLocalizedString(profile.basalTotal, 2, 2)} U/day", color = colors.secondaryText)
-                        }
-                    }
-                    formSection(header = "Insulin Sensitivities") {
-                        profile.sensitivity.forEachIndexed { i, item ->
-                            if (i > 0) FormDivider()
-                            LabeledValueRow(scheduleTimeText(context, item.seconds), "${glucoseText(item.value)} $unitText/U")
-                        }
-                    }
-                }
-            }
-            val title = if (isActive) "Active Profile" else "Activate Profile"
-            BottomActionButton(title, "Sending...", isSending, enabled = !isActive) {
-                alert = RemoteAlert(
-                    "Activate ${profile.name} in Loop?",
-                    "Loop replaces its correction range, carb ratios, basal rates and insulin sensitivities with these values and writes the basal rates to the pump.",
-                    confirmTitle = "Activate",
-                    onConfirm = {
-                        authenticateLoop(activity, "Confirm your identity to activate ${profile.name} in Loop.", { presentFailure(it) }) { send(profile) }
-                    },
-                )
-            }
-        }
-    }
-    RemoteAlertDialog(alert) { alert = null }
 }

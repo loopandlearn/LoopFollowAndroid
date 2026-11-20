@@ -46,7 +46,10 @@ fun MainEngine.webLoadNSProfile() {
 }
 
 fun MainEngine.updateProfile(profileData: NSProfile) {
-    val store = profileData.store["default"] ?: profileData.store["Default"] ?: return
+    val store = profileData.store["default"] ?: profileData.store["Default"] ?: run {
+        LogManager.log(LogManager.Category.NIGHTSCOUT, "Profile document not loaded, its Default entry could not be read")
+        return
+    }
     profileManager.loadProfile(profileData)
     infoManager.update(InfoType.PROFILE, profileData.defaultProfile)
     Storage.lastProfileName.value = profileData.defaultProfile

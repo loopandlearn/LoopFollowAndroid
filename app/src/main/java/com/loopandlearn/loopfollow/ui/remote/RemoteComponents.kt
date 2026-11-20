@@ -177,7 +177,7 @@ fun rememberGuardedAction(): (() -> Unit) -> Unit {
 
 /** A prominent full-width button pinned under a form. */
 @Composable
-fun BottomActionButton(title: String, busyTitle: String, busy: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+fun BottomActionButton(title: String, busyTitle: String, busy: Boolean, enabled: Boolean = true, color: Color? = null, onClick: () -> Unit) {
     val colors = LocalAppColors.current
     val guarded = rememberGuardedAction()
     Box(Modifier.fillMaxWidth().background(colors.groupedBackground).padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -187,7 +187,7 @@ fun BottomActionButton(title: String, busyTitle: String, busy: Boolean, enabled:
             onClick = { guarded(onClick) },
             enabled = enabled && !busy,
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = colors.blue, contentColor = Color.White),
+            colors = ButtonDefaults.buttonColors(containerColor = color ?: colors.blue, contentColor = Color.White),
             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
         ) {
             if (busy) {
@@ -225,6 +225,8 @@ data class RemoteAlert(
     val confirmTitle: String? = null,
     val onConfirm: (() -> Unit)? = null,
     val onDismiss: (() -> Unit)? = null,
+    /** Shows the confirm button in red, for an action that changes dosing at once or removes something. */
+    val destructive: Boolean = false,
 )
 
 @Composable
@@ -238,7 +240,7 @@ fun RemoteAlertDialog(alert: RemoteAlert?, onClose: () -> Unit) {
             TextButton(onClick = {
                 onClose()
                 (alert.onConfirm ?: alert.onDismiss)?.invoke()
-            }) { Text(alert.confirmTitle ?: "OK") }
+            }) { Text(alert.confirmTitle ?: "OK", color = if (alert.destructive) LocalAppColors.current.red else Color.Unspecified) }
         },
         dismissButton = if (alert.onConfirm != null) {
             { TextButton(onClick = onClose) { Text("Cancel") } }

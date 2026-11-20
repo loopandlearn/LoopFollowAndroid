@@ -19,6 +19,10 @@ enum class TRCCommandType(val raw: String, val displayName: String) {
     CANCEL_OVERRIDE("cancel_override", "Cancel Override"),
     EDIT_MEAL("edit_meal", "Edit Meal"),
     DELETE_MEAL("delete_meal", "Delete Meal"),
+    SWITCH_PROFILE("switch_profile", "Switch Profile"),
+    SAVE_PROFILE("save_profile", "Save Profile"),
+    DELETE_PROFILE("delete_profile", "Delete Profile"),
+    SAVE_SCHEDULED_SWITCHES("save_scheduled_switches", "Save Scheduled Switches"),
 }
 
 /**
@@ -111,6 +115,44 @@ object TrioRemote {
         ).also { logMealCommand(it, commandID, mealID) }
     }
 
+    /**
+     * Sends a profile command with its own command id as collapse id. [tooLargeMessage] explains a push over the
+     * APNs size limit; such a push is never sent.
+     */
+    suspend fun profileCommand(
+        type: TRCCommandType,
+        change: RemoteCommandRefresh.Change,
+        tooLargeMessage: ((Int) -> String)?,
+        build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit,
+    ): String? {
+        val commandID = UUID.randomUUID().toString().uppercase()
+        val payload = payload(type) {
+            put("command_id", commandID)
+            build()
+        }
+        return send(type, payload, change, collapseID = commandID, tooLargeMessage = tooLargeMessage)
+    }
+
+    /** The size of the push a profile command would send, or null when it can not be built (no shared secret). */
+    fun profileCommandPushSize(type: TRCCommandType, build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit): Int? {
+        val sharedSecret = Storage.sharedSecret.value
+        if (sharedSecret.isEmpty()) return null
+        val payload = payload(type) {
+            put("command_id", UUID.randomUUID().toString().uppercase())
+            build()
+        }
+        return runCatching { message(type, SecureMessenger(sharedSecret).encrypt(payload.toString())).toByteArray(Charsets.UTF_8).size }.getOrNull()
+    }
+
+    private fun message(type: TRCCommandType, encrypted: String): String = buildJsonObject {
+        put("aps", buildJsonObject {
+            put("content-available", 1)
+            put("interruption-level", "time-sensitive")
+            put("alert", "Remote Command: ${type.displayName}")
+        })
+        put("encrypted_data", encrypted)
+    }.toString()
+
     private fun logMealCommand(error: String?, commandID: String, mealID: String) {
         if (error == null) LogManager.log(LogManager.Category.APNS, "Meal command sent command_id=$commandID meal_id=$mealID")
     }
@@ -136,7 +178,13 @@ object TrioRemote {
     }
 
     /** Returns null when APNs accepted the push, else the error to show. */
-    private suspend fun send(type: TRCCommandType, payload: JsonObject, change: RemoteCommandRefresh.Change, collapseID: String = type.raw): String? {
+    private suspend fun send(
+        type: TRCCommandType,
+        payload: JsonObject,
+        change: RemoteCommandRefresh.Change,
+        collapseID: String = type.raw,
+        tooLargeMessage: ((Int) -> String)? = null,
+    ): String? {
         val deviceToken = Storage.deviceToken.value
         val sharedSecret = Storage.sharedSecret.value
         val user = Storage.user.value
@@ -167,17 +215,15 @@ object TrioRemote {
         } catch (e: Exception) {
             return "Failed to encode or encrypt push message: ${e.message}".also { LogManager.log(LogManager.Category.APNS, it) }
         }
-        val message = buildJsonObject {
-            put("aps", buildJsonObject {
-                put("content-available", 1)
-                put("interruption-level", "time-sensitive")
-                put("alert", "Remote Command: ${type.displayName}")
-            })
-            put("encrypted_data", encrypted)
+        val body = message(type, encrypted)
+        val size = body.toByteArray(Charsets.UTF_8).size
+        if (tooLargeMessage != null && size > APNSDelivery.MAX_PAYLOAD_BYTES) {
+            LogManager.log(LogManager.Category.APNS, "Command not sent: $size bytes")
+            return tooLargeMessage(size)
         }
         return uninterruptedSend {
             val error = APNSDelivery.send(
-                message.toString(), deviceToken, bundleId, Storage.productionEnvironment.value,
+                body, deviceToken, bundleId, Storage.productionEnvironment.value,
                 keyId, teamId, apnsKey, expiration = "600", collapseID = collapseID,
             )
             if (error == null) RemoteCommandRefresh.commandSent(change)

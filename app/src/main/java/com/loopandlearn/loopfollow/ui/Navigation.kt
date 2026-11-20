@@ -71,8 +71,27 @@ sealed class Route {
     data object LoopBolus : Route()
     data object LoopCarbs : Route()
     data object LoopOverrides : Route()
-    data object LoopProfiles : Route()
-    data class LoopProfilePreview(val name: String) : Route()
+    data class TherapyProfiles(val remote: com.loopandlearn.loopfollow.remote.profiles.ProfileRemote) : Route()
+    data class TherapyProfilePreview(val remote: com.loopandlearn.loopfollow.remote.profiles.ProfileRemote, val name: String) : Route()
+    class ProfileEditor(val session: com.loopandlearn.loopfollow.ui.remote.ProfileEditSession) : Route()
+    class ProfileRename(val session: com.loopandlearn.loopfollow.ui.remote.ProfileRenameSession) : Route()
+    /** [returnTo] is the stack size the flow goes back to once it is done. */
+    class ProfileReview(
+        val remote: com.loopandlearn.loopfollow.remote.profiles.ProfileRemote,
+        val command: com.loopandlearn.loopfollow.remote.profiles.ProfileCommand.Save,
+        val baseline: com.loopandlearn.loopfollow.remote.profiles.TherapyProfile,
+        val isActive: Boolean,
+        val limits: com.loopandlearn.loopfollow.remote.profiles.ProfileEditLimits?,
+        val returnTo: Int,
+    ) : Route()
+    class ScheduledSwitchesEditor(val session: com.loopandlearn.loopfollow.ui.remote.ScheduledSwitchesSession) : Route()
+    class ScheduledSwitchEntry(val session: com.loopandlearn.loopfollow.ui.remote.ScheduledSwitchesSession, val id: String) : Route()
+    class ScheduledSwitchesReview(
+        val remote: com.loopandlearn.loopfollow.remote.profiles.ProfileRemote,
+        val profileSet: com.loopandlearn.loopfollow.remote.profiles.TherapyProfileSet,
+        val entries: List<com.loopandlearn.loopfollow.remote.profiles.ScheduledProfileSwitch>,
+        val returnTo: Int,
+    ) : Route()
 }
 
 class NavStack {
@@ -85,6 +104,11 @@ class NavStack {
         if (stack.isNotEmpty()) stack.removeAt(stack.size - 1)
     }
     fun popToRoot() = stack.clear()
+
+    /** Pops screens until [size] remain. */
+    fun popTo(size: Int) {
+        while (stack.size > maxOf(size, 0)) stack.removeAt(stack.size - 1)
+    }
 }
 
 val TabItem.icon: ImageVector
@@ -190,8 +214,18 @@ private fun RouteContent(route: Route, nav: NavStack) {
         Route.LoopBolus -> com.loopandlearn.loopfollow.ui.remote.LoopBolusScreen(onBack = { nav.pop() })
         Route.LoopCarbs -> com.loopandlearn.loopfollow.ui.remote.LoopCarbsScreen(onBack = { nav.pop() })
         Route.LoopOverrides -> com.loopandlearn.loopfollow.ui.remote.LoopOverridePresetsScreen(onBack = { nav.pop() })
-        Route.LoopProfiles -> com.loopandlearn.loopfollow.ui.remote.LoopProfilesScreen(nav, onBack = { nav.pop() })
-        is Route.LoopProfilePreview -> com.loopandlearn.loopfollow.ui.remote.LoopProfilePreviewScreen(route.name, onBack = { nav.pop() })
+        is Route.TherapyProfiles -> com.loopandlearn.loopfollow.ui.remote.TherapyProfilesScreen(route.remote, nav, onBack = { nav.pop() })
+        is Route.TherapyProfilePreview -> com.loopandlearn.loopfollow.ui.remote.TherapyProfilePreviewScreen(route.remote, route.name, nav, onBack = { nav.pop() })
+        is Route.ProfileEditor -> com.loopandlearn.loopfollow.ui.remote.ProfileEditorScreen(route.session, nav)
+        is Route.ProfileRename -> com.loopandlearn.loopfollow.ui.remote.ProfileRenameScreen(route.session, nav)
+        is Route.ProfileReview -> com.loopandlearn.loopfollow.ui.remote.ProfileReviewScreen(
+            route.remote, route.command, route.baseline, route.isActive, route.limits, nav, onFinished = { nav.popTo(route.returnTo) },
+        )
+        is Route.ScheduledSwitchesEditor -> com.loopandlearn.loopfollow.ui.remote.ScheduledSwitchesEditorScreen(route.session, nav)
+        is Route.ScheduledSwitchEntry -> com.loopandlearn.loopfollow.ui.remote.ScheduledSwitchEntryScreen(route.session, route.id, nav)
+        is Route.ScheduledSwitchesReview -> com.loopandlearn.loopfollow.ui.remote.ScheduledSwitchesReviewScreen(
+            route.remote, route.profileSet, route.entries, nav, onFinished = { nav.popTo(route.returnTo) },
+        )
     }
 }
 

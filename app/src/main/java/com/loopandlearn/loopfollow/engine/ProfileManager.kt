@@ -13,6 +13,8 @@ import com.loopandlearn.loopfollow.nightscout.string
 import com.loopandlearn.loopfollow.nightscout.strings
 import com.loopandlearn.loopfollow.storage.GlucoseConversion
 import com.loopandlearn.loopfollow.storage.Storage
+import com.loopandlearn.loopfollow.remote.profiles.TherapyProfiles
+import com.loopandlearn.loopfollow.helpers.LogManager
 import kotlinx.serialization.json.JsonObject
 import java.util.Calendar
 import java.util.TimeZone
@@ -55,7 +57,8 @@ class NSProfile(val json: JsonObject) {
         (v as? JsonObject)?.let { k to Store(it) }
     }?.toMap() ?: emptyMap()
     val defaultProfile: String = json.string("defaultProfile") ?: ""
-    val units: String = json.string("units") ?: ""
+    /** The document's glucose units; mg/dL when it states none. */
+    val units: String = json.string("units") ?: "mg/dL"
     val bundleIdentifier: String? = json.string("bundleIdentifier")
     val isAPNSProduction: Boolean? = json.bool("isAPNSProduction")
     val deviceToken: String? = json.string("deviceToken")
@@ -64,6 +67,9 @@ class NSProfile(val json: JsonObject) {
     val startDate: String? = json.string("startDate")
     val createdAt: String? = json.string("created_at")
     val remoteCommands: List<String>? = json.array("remoteCommands")?.strings()
+
+    /** The glucose units of a store entry: its own, or the document's. Missing when the Nightscout profile editor saved the document. */
+    fun units(store: Store): String = store.units.ifBlank { units }
 
     val loopSettings: JsonObject? = json.obj("loopSettings")
     val loopDosingEnabled: Boolean? = loopSettings?.bool("dosingEnabled")
@@ -110,11 +116,12 @@ object ProfileManager {
     private fun toMgdl(value: Double) = if (unitsAreMgdl) value else value * GlucoseConversion.MMOL_TO_MGDL
 
     fun loadProfile(profile: NSProfile) {
-        val store = profile.store[profile.defaultProfile] ?: return
-        // A profile that does not state its units cannot be converted safely.
-        if (store.units.isBlank()) return
+        val store = profile.store[profile.defaultProfile] ?: run {
+            LogManager.log(LogManager.Category.NIGHTSCOUT, "Profile document not loaded, its active entry could not be read")
+            return
+        }
 
-        unitsAreMgdl = store.units.lowercase() == "mg/dl"
+        unitsAreMgdl = profile.units(store).lowercase() == "mg/dl"
         timezone = getTimeZone(store.timezone)
 
         isfSchedule = store.sens.map { TimeValue(it.timeAsSeconds.toInt(), toMgdl(it.value)) }
@@ -143,6 +150,7 @@ object ProfileManager {
         profile.isAPNSProduction?.let { Storage.productionEnvironment.value = it }
         Storage.teamId.value = profile.teamID ?: Storage.teamId.value ?: ""
         Storage.remoteCommands.value = profile.remoteCommands ?: emptyList()
+        TherapyProfiles.update(profile)
     }
 
     fun currentISF(): Double? = isf(nowMillis())
