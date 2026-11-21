@@ -1,5 +1,7 @@
 package com.loopandlearn.loopfollow.engine
 
+import android.content.Context
+import android.content.Intent
 import com.loopandlearn.loopfollow.helpers.LogManager
 import com.loopandlearn.loopfollow.nightscout.NightscoutError
 import com.loopandlearn.loopfollow.nightscout.NightscoutUtils
@@ -24,6 +26,8 @@ data class BannerMessage(
     val severity: BannerSeverity,
     val text: String,
     val timestamp: Long,
+    /** The system page a tap on the banner opens. */
+    val settingsIntent: ((Context) -> Intent)? = null,
 )
 
 /** App-wide banner state. Producers call report/clear; the view observes [activeBanner]. */
@@ -40,12 +44,17 @@ object BannerManager {
     private val dismissals = HashMap<BannerSource, Pair<Long, String>>()
     private var lastNightscoutDiagnostic: Long? = null
 
-    fun report(source: BannerSource, severity: BannerSeverity = BannerSeverity.ERROR, text: String) {
+    fun report(
+        source: BannerSource,
+        severity: BannerSeverity = BannerSeverity.ERROR,
+        text: String,
+        settingsIntent: ((Context) -> Intent)? = null,
+    ) {
         MainEngine.scope.launch {
             val existing = messages[source]
             if (existing == null || existing.text != text || existing.severity != severity) {
                 dismissals.remove(source)
-                messages[source] = BannerMessage(UUID.randomUUID().toString(), source, severity, text, System.currentTimeMillis())
+                messages[source] = BannerMessage(UUID.randomUUID().toString(), source, severity, text, System.currentTimeMillis(), settingsIntent)
             }
             publish()
         }

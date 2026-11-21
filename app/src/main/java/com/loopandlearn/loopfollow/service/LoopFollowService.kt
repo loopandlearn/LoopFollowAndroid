@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import com.loopandlearn.loopfollow.LoopFollowApplication
 import com.loopandlearn.loopfollow.R
 import com.loopandlearn.loopfollow.alarm.AlarmNotifier
+import com.loopandlearn.loopfollow.alarm.AlarmPermissions
 import com.loopandlearn.loopfollow.engine.MainEngine
 import com.loopandlearn.loopfollow.engine.TaskScheduler
 import com.loopandlearn.loopfollow.helpers.LogManager
@@ -60,6 +61,7 @@ class LoopFollowService : Service() {
             this, ONGOING_ID, buildOngoing(this),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
+        AlarmPermissions.checkFullScreenAfterUpdate(this)
         wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LoopFollow::Pipeline")
             .apply {
@@ -231,5 +233,6 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         if (Storage.url.value.isNotEmpty() || Storage.shareUserName.value.isNotEmpty()) LoopFollowService.start(context)
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) AlarmPermissions.checkFullScreenAfterUpdate(context)
     }
 }

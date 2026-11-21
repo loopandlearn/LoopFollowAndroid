@@ -8,7 +8,7 @@ plugins {
 }
 
 // The release version. versionCode grows with it (1.2.3 -> 10203), so every release installs over the one before.
-val lfVersion = "0.1.7"
+val lfVersion = "8.0.9"
 val lfVersionCode = lfVersion.split(".").map { it.toInt() }.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
 
 // A second or third LoopFollow next to the first one, each with its own settings: -PlfAppSuffix=Second gives the
