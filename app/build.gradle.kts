@@ -8,7 +8,7 @@ plugins {
 }
 
 // The release version. versionCode grows with it (1.2.3 -> 10203), so every release installs over the one before.
-val lfVersion = "0.1.6"
+val lfVersion = "0.1.7"
 val lfVersionCode = lfVersion.split(".").map { it.toInt() }.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
 
 // A second or third LoopFollow next to the first one, each with its own settings: -PlfAppSuffix=Second gives the
@@ -20,7 +20,7 @@ require(lfAppSuffix.matches(Regex("[A-Za-z0-9]*"))) { "lfAppSuffix may only cont
 
 android {
     namespace = "com.loopandlearn.loopfollow"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.loopandlearn.loopfollow"
@@ -76,7 +76,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
