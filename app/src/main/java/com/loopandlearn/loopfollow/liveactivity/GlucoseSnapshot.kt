@@ -204,7 +204,9 @@ object LAFormat {
 
     fun tempTargetValue(s: GlucoseSnapshot): String? = s.tempTargetMgdl?.takeIf { it > 0 }?.let { glucoseValue(it, s.unit) }
 
-    fun updated(s: GlucoseSnapshot): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date((s.updatedAt * 1000).toLong()))
+    fun updated(s: GlucoseSnapshot): String = time(s.updatedAt)
+
+    fun time(seconds: Double): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date((seconds * 1000).toLong()))
 }
 
 /** Threshold-driven colors, as ARGB ints. */

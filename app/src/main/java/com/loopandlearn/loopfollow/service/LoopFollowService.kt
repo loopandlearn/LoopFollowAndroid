@@ -27,6 +27,8 @@ import com.loopandlearn.loopfollow.engine.TaskScheduler
 import com.loopandlearn.loopfollow.helpers.LogManager
 import com.loopandlearn.loopfollow.helpers.nowSeconds
 import com.loopandlearn.loopfollow.liveactivity.LiveActivityNotification
+import com.loopandlearn.loopfollow.liveactivity.LiveUpdate
+import com.loopandlearn.loopfollow.widget.GlucoseWidget
 import com.loopandlearn.loopfollow.storage.BackgroundRefreshType
 import com.loopandlearn.loopfollow.storage.Observable
 import com.loopandlearn.loopfollow.storage.Storage
@@ -85,6 +87,11 @@ class LoopFollowService : Service() {
 
     companion object {
         const val CHANNEL_ONGOING = "ongoing"
+        /**
+         * The channel of the notification as a Live Update. Its importance is default, so the card shows on the lock
+         * screen when the phone hides silent notifications there; it has no sound or vibration and alerts only once.
+         */
+        const val CHANNEL_LIVE_UPDATE = "liveUpdate"
         const val ONGOING_ID = 1
 
         fun start(context: Context) {
@@ -110,6 +117,14 @@ class LoopFollowService : Service() {
                     setShowBadge(false)
                 },
             )
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_LIVE_UPDATE, "Glucose (Status Bar)", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    setShowBadge(false)
+                    setSound(null, null)
+                    enableVibration(false)
+                    enableLights(false)
+                },
+            )
             AlarmNotifier.createChannels(context)
         }
 
@@ -119,7 +134,7 @@ class LoopFollowService : Service() {
                 context, 0, Intent(context, MainActivity::class.java),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            val builder = NotificationCompat.Builder(context, CHANNEL_ONGOING)
+            val builder = NotificationCompat.Builder(context, if (Storage.laEnabled.value && LiveUpdate.active) CHANNEL_LIVE_UPDATE else CHANNEL_ONGOING)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
@@ -137,7 +152,7 @@ class LoopFollowService : Service() {
     }
 }
 
-/** Refreshes the ongoing notification from the current values. */
+/** Refreshes the ongoing notification and the glucose widgets from the current values. */
 object OngoingNotification {
     private val handler = Handler(Looper.getMainLooper())
     private val scheduledRefresh = Runnable { refresh() }
@@ -145,9 +160,10 @@ object OngoingNotification {
 
     fun refresh() {
         val context = LoopFollowApplication.instance
+        runCatching { GlucoseWidget.updateAll(context) }
         if (Storage.backgroundRefreshType.value == BackgroundRefreshType.NONE) return
         runCatching {
-            NotificationManagerCompat.from(context).notify(LoopFollowService.ONGOING_ID, LoopFollowService.buildOngoing(context))
+            context.getSystemService(NotificationManager::class.java).notify(LoopFollowService.ONGOING_ID, LoopFollowService.buildOngoing(context))
         }
         handler.removeCallbacks(scheduledRefresh)
         LiveActivityNotification.nextAdjustmentChange()?.let { at ->
@@ -161,7 +177,7 @@ object OngoingNotification {
         if (scope != null) return
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main).also {
             merge(
-                Storage.laEnabled.flow, Storage.laSlots.flow, Storage.units.flow, Storage.timeInRangeModeRaw.flow,
+                Storage.laEnabled.flow, Storage.laSlots.flow, Storage.laStatusChip.flow, Storage.units.flow, Storage.timeInRangeModeRaw.flow,
                 Storage.lowLine.flow, Storage.highLine.flow, Storage.showDisplayName.flow, Observable.bgStale.flow,
             ).debounce(300).onEach { refresh() }.launchIn(it)
         }

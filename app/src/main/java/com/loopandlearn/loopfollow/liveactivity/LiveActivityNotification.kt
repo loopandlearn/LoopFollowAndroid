@@ -2,8 +2,10 @@ package com.loopandlearn.loopfollow.liveactivity
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.os.Build
 import android.os.SystemClock
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.style.StrikethroughSpan
 import android.view.View
 import android.widget.RemoteViews
@@ -34,6 +36,10 @@ object LiveActivityNotification {
     /** Applies the card to [builder]; false when there is no reading to show yet. */
     fun apply(context: Context, builder: NotificationCompat.Builder): Boolean {
         val s = GlucoseSnapshot.current() ?: return false
+        if (LiveUpdate.active) {
+            applyLiveUpdate(context, builder, s)
+            return true
+        }
         builder
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(collapsed(context, s))
@@ -59,7 +65,7 @@ object LiveActivityNotification {
 
     // ANDROID-DEVIATION: a reading 12 minutes or older is struck through, as in the home screen BG display; the
     // notification stays posted for as long as the background service runs.
-    private fun glucoseText(s: GlucoseSnapshot): CharSequence {
+    internal fun glucoseText(s: GlucoseSnapshot): CharSequence {
         val text = LAFormat.glucose(s)
         if (!Observable.bgStale.value) return text
         return SpannableString(text).apply { setSpan(StrikethroughSpan(), 0, length, 0) }
@@ -162,6 +168,41 @@ object LiveActivityNotification {
         views.setChronometerCountDown(id, true)
     }
 
+    // ANDROID-DEVIATION: as a Live Update the card uses the system's standard layout, since Android promotes only
+    // notifications without custom views. The status bar chip holds glucose and trend, as the Dynamic Island's compact
+    // leading region does; the card lists the grid slots, adjustments and CGM state as text lines.
+    private fun applyLiveUpdate(context: Context, builder: NotificationCompat.Builder, s: GlucoseSnapshot) {
+        val lines = liveUpdateLines(s)
+        builder
+            .setContentTitle(liveUpdateTitle(s))
+            .setContentText(lines.firstOrNull())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n")))
+            .setColor(LAColors.keyline(s))
+            .setRequestPromotedOngoing(true)
+            .setShortCriticalText(LiveUpdate.chipText(s, Observable.bgStale.value))
+            .setWhen((s.updatedAt * 1000).toLong())
+            .setShowWhen(true)
+    }
+
+    private fun liveUpdateTitle(s: GlucoseSnapshot): CharSequence {
+        val reading = SpannableStringBuilder(glucoseText(s)).append(" ${LAFormat.trendArrow(s)}  ${LAFormat.delta(s)} ${s.unit.raw}")
+        return if (s.isNotLooping) SpannableStringBuilder("⚠️ Not Looping · ").append(reading) else reading
+    }
+
+    private fun liveUpdateLines(s: GlucoseSnapshot): List<String> = buildList {
+        LASettings.slots().filter { it != LiveActivitySlotOption.NONE }
+            .joinToString("   ") { "${it.gridLabel} ${LAFormat.slotValue(it, s)}" }
+            .takeIf { it.isNotEmpty() }?.let(::add)
+        val now = nowSeconds()
+        val overrideEnd = s.overrideEndAt?.takeIf { it > now }
+        s.override?.takeUnless { s.overrideEndAt != null && overrideEnd == null }?.let { name ->
+            add(overrideEnd?.let { "$name until ${LAFormat.time(it)}" } ?: name)
+        }
+        s.tempTargetEndAt?.takeIf { it > now }?.let { end -> LAFormat.tempTargetValue(s)?.let { add("TT $it until ${LAFormat.time(end)}") } }
+        s.cgmSensorState?.let { add("CGM: $it") }
+        add("Last Update: ${LAFormat.updated(s)}")
+    }
+
     /** The ongoing notification while the Live Activity is off or there is no reading yet. */
     fun applyMinimal(context: Context, builder: NotificationCompat.Builder) {
         builder
@@ -171,21 +212,23 @@ object LiveActivityNotification {
     }
 }
 
+/** The notification as an Android 16 Live Update, promoted to the top of the shade and lock screen with a status bar chip. */
+object LiveUpdate {
+    val supported: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
+
+    val active: Boolean get() = supported && Storage.laStatusChip.value
+
+    /** Glucose and trend; a stale reading is marked, since the chip has no strikethrough. The chip shows up to about 7 characters. */
+    fun chipText(s: GlucoseSnapshot, stale: Boolean): String =
+        if (stale) "⚠ ${LAFormat.glucose(s)}" else "${LAFormat.glucose(s)}${LAFormat.trendArrow(s)}"
+}
+
 /**
  * ANDROID-DEVIATION: The trend is drawn with arrow icons, as on the home screen; the notification font draws
  * the arrow characters as a short dash. An unknown trend shows the "–" text.
  */
-private fun setTrendArrow(views: RemoteViews, s: GlucoseSnapshot, color: Int) {
-    val icons = when (s.trend) {
-        GlucoseSnapshot.Trend.UP_FAST -> listOf(R.drawable.la_arrow_up, R.drawable.la_arrow_up)
-        GlucoseSnapshot.Trend.UP -> listOf(R.drawable.la_arrow_up)
-        GlucoseSnapshot.Trend.UP_SLIGHT -> listOf(R.drawable.la_arrow_ne)
-        GlucoseSnapshot.Trend.FLAT -> listOf(R.drawable.la_arrow_forward)
-        GlucoseSnapshot.Trend.DOWN_SLIGHT -> listOf(R.drawable.la_arrow_se)
-        GlucoseSnapshot.Trend.DOWN -> listOf(R.drawable.la_arrow_down)
-        GlucoseSnapshot.Trend.DOWN_FAST -> listOf(R.drawable.la_arrow_down, R.drawable.la_arrow_down)
-        GlucoseSnapshot.Trend.UNKNOWN -> emptyList()
-    }
+internal fun setTrendArrow(views: RemoteViews, s: GlucoseSnapshot, color: Int) {
+    val icons = trendIcons(s.trend)
     views.setViewVisibility(R.id.la_arrow, if (icons.isEmpty()) View.VISIBLE else View.GONE)
     views.setTextViewText(R.id.la_arrow, LAFormat.trendArrow(s))
     views.setTextColor(R.id.la_arrow, color)
@@ -197,4 +240,16 @@ private fun setTrendArrow(views: RemoteViews, s: GlucoseSnapshot, color: Int) {
             views.setInt(id, "setColorFilter", color)
         }
     }
+}
+
+/** The arrow icons for [trend]: one or two, or none for an unknown trend. */
+internal fun trendIcons(trend: GlucoseSnapshot.Trend): List<Int> = when (trend) {
+    GlucoseSnapshot.Trend.UP_FAST -> listOf(R.drawable.la_arrow_up, R.drawable.la_arrow_up)
+    GlucoseSnapshot.Trend.UP -> listOf(R.drawable.la_arrow_up)
+    GlucoseSnapshot.Trend.UP_SLIGHT -> listOf(R.drawable.la_arrow_ne)
+    GlucoseSnapshot.Trend.FLAT -> listOf(R.drawable.la_arrow_forward)
+    GlucoseSnapshot.Trend.DOWN_SLIGHT -> listOf(R.drawable.la_arrow_se)
+    GlucoseSnapshot.Trend.DOWN -> listOf(R.drawable.la_arrow_down)
+    GlucoseSnapshot.Trend.DOWN_FAST -> listOf(R.drawable.la_arrow_down, R.drawable.la_arrow_down)
+    GlucoseSnapshot.Trend.UNKNOWN -> emptyList()
 }

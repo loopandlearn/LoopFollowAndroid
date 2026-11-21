@@ -1,14 +1,20 @@
 package com.loopandlearn.loopfollow.ui.settings
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loopandlearn.loopfollow.liveactivity.LASettings
 import com.loopandlearn.loopfollow.liveactivity.LiveActivitySlotOption
+import com.loopandlearn.loopfollow.liveactivity.LiveUpdate
 import com.loopandlearn.loopfollow.service.OngoingNotification
 import com.loopandlearn.loopfollow.storage.Storage
 import com.loopandlearn.loopfollow.ui.components.ButtonRow
@@ -28,6 +34,13 @@ fun LiveActivitySettingsScreen(onBack: () -> Unit) {
     val storedSlots by Storage.laSlots.flow.collectAsStateWithLifecycle()
     val slots = remember(storedSlots) { LASettings.slots() }
     var restartConfirmed by remember { mutableStateOf(false) }
+    val statusChip by Storage.laStatusChip.flow.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var promotedAllowed by remember { mutableStateOf(true) }
+    LifecycleResumeEffect(Unit) {
+        promotedAllowed = NotificationManagerCompat.from(context).canPostPromotedNotifications()
+        onPauseOrDispose {}
+    }
 
     LaunchedEffect(restartConfirmed) {
         if (restartConfirmed) {
@@ -45,6 +58,24 @@ fun LiveActivitySettingsScreen(onBack: () -> Unit) {
                 footer = "The Live Activity is shown as LoopFollow's ongoing notification while Background Refresh is on. When it is off, the notification stays with minimal content, since the background service that keeps alarms running needs it.",
             ) {
                 ToggleRow("Enable Live Activity", laEnabled) { Storage.laEnabled.value = it }
+            }
+            // ANDROID-DEVIATION: the status bar chip is Android's Live Update; iOS shows the Dynamic Island.
+            if (laEnabled && LiveUpdate.supported) {
+                formSection(
+                    header = "Status Bar",
+                    footer = "Shows glucose and trend in a chip in the status bar and keeps the card at the top of the notifications and the lock screen. The card then uses Android's standard layout.",
+                ) {
+                    ToggleRow("Show in Status Bar", statusChip) { Storage.laStatusChip.value = it }
+                    if (statusChip && !promotedAllowed) {
+                        FormDivider()
+                        ButtonRow("Allow Live Updates in Settings") {
+                            context.startActivity(
+                                Intent(Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            )
+                        }
+                    }
+                }
             }
             if (laEnabled) {
                 formSection {

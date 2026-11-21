@@ -25,7 +25,7 @@ Each entry: **title**: what differs and why. Code: Android location. iOS: the co
 
 ## Not available on Android
 
-- **Apple Watch, CarPlay, Dynamic Island, widgets, app badge, calendar and contact-image tricks**: iOS-only system features. The onboarding completion screen leaves out the "Contact image" tip for the same reason. Code: `ui/onboarding/OnboardingScreen.kt` (`CompletionStep`). iOS: `Onboarding/Steps/CompletionStepView.swift`.
+- **Apple Watch, CarPlay, Dynamic Island, app badge, calendar and contact-image tricks**: iOS-only system features. The onboarding completion screen leaves out the "Contact image" tip for the same reason. Code: `ui/onboarding/OnboardingScreen.kt` (`CompletionStep`). iOS: `Onboarding/Steps/CompletionStepView.swift`.
 
 ## Telemetry
 
@@ -77,6 +77,9 @@ Each entry: **title**: what differs and why. Code: Android location. iOS: the co
 - **Card background**: the range tint opacities are blended over a fixed dark base into an opaque color, since a notification has no translucent lock-screen material. Code: `liveactivity/GlucoseSnapshot.kt` (`LAColors`). iOS: `LoopFollowLiveActivity.swift` (`LAColors.backgroundTint`).
 - **Settings screen**: the footer describes the ongoing notification, and the APNs credentials warning and the "Grid Slot - CarPlay / Watch" section are left out, since the card is updated locally and has no CarPlay or Watch form. "Restart Live Activity" redraws the notification. Code: `ui/settings/LiveActivitySettingsScreen.kt`. iOS: `LiveActivitySettingsView.swift`.
 - **Trend arrow icons**: the card draws the trend with arrow icons, as the home screen does; the notification font renders the arrow characters as a short dash. An unknown trend shows "–". Code: `liveactivity/LiveActivityNotification.kt` (`setTrendArrow`), `res/drawable/la_arrow_*.xml`. iOS: `LoopFollowLAExtension/LoopFollowLiveActivity.swift`.
+- **Status bar chip (Live Update)**: on Android 16 and later, with "Show in Status Bar" on (the default), the notification is a Live Update: glucose and trend in a status bar chip, as the Dynamic Island compact leading region shows them, and the card kept expanded at the top of the shade and lock screen. Android promotes only notifications without custom views, so the card then uses the standard layout: BG, arrow and delta as the title and the grid slots, override, temp target, CGM state and "Last Update" as text lines. A stale reading shows as "⚠ value" in the chip, which has no strikethrough. The card posts on its own channel with default importance and no sound or vibration, so phones that hide silent notifications on the lock screen still show it. Code: `liveactivity/LiveActivityNotification.kt` (`applyLiveUpdate`, `LiveUpdate`), `service/LoopFollowService.kt` (`CHANNEL_LIVE_UPDATE`), `ui/settings/LiveActivitySettingsScreen.kt`. iOS: `LoopFollowLiveActivity.swift` (Dynamic Island).
+- **Glucose widget**: a home and lock screen widget shows glucose, trend, delta and the reading's age (a running count), on the range-colored card background. Android widgets have no refresh budget, so it is redrawn with every refresh of the notification. Code: `widget/GlucoseWidget.kt`, `res/layout/widget_glucose.xml`. iOS: none.
+- **Screensaver**: "LoopFollow Glucose" can be chosen as the phone's screensaver, shown while it charges: the time, glucose in the range color, trend, delta, age and Not Looping or CGM state, shifted a little each minute against burn-in. Code: `dream/GlucoseDream.kt`, `res/layout/dream_glucose.xml`. iOS: none.
 
 ## Graph
 

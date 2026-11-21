@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_label">Glucose</string>
+    <string name="widget_description">Glucose, trend and delta, updated with each reading</string>
+    <string name="dream_label">LoopFollow Glucose</string>
+</resources>

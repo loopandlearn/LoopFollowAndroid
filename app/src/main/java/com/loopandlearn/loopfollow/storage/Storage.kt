@@ -109,6 +109,8 @@ object Storage {
     val laEnabled = storageValue("laEnabled", true)
     /** Raw values of the four grid slots, in the order top left, top right, bottom left, bottom right. */
     val laSlots = storageValue("la.slots", com.loopandlearn.loopfollow.liveactivity.LiveActivitySlotDefaults.all.map { it.raw })
+    /** On Android 16 and later, the notification is a Live Update with glucose in a status bar chip. */
+    val laStatusChip = storageValue("la.statusChip", true)
 
     // Graph settings
     val showDots = storageValue("showDots", true)
