@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,11 +29,12 @@ import com.loopandlearn.loopfollow.engine.BannerManager
 import com.loopandlearn.loopfollow.engine.BannerSeverity
 import com.loopandlearn.loopfollow.ui.theme.LocalAppColors
 
-/** Dismissable banner shown at the top of the app, above the tab content. */
+/** Dismissable banner shown at the top of the app, above the tab content. A tap opens the banner's settings page, if it has one. */
 @Composable
 fun BannerView() {
     val message by BannerManager.activeBanner.flow.collectAsStateWithLifecycle()
     val colors = LocalAppColors.current
+    val context = LocalContext.current
     AnimatedVisibility(visible = message != null) {
         val m = message ?: return@AnimatedVisibility
         val tint = when (m.severity) {
@@ -51,12 +53,13 @@ fun BannerView() {
                 .padding(horizontal = 10.dp, vertical = 4.dp)
                 .background(tint.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                 .border(1.dp, tint.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                .then(m.settingsIntent?.let { intent -> Modifier.clickableNoRipple { context.startActivity(intent(context)) } } ?: Modifier)
                 .padding(16.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(12.dp))
-            Text(m.text, fontSize = 16.sp, color = colors.primaryText, maxLines = 3, modifier = Modifier.weight(1f))
+            Text(m.text, fontSize = 16.sp, color = colors.primaryText, maxLines = 4, modifier = Modifier.weight(1f))
             Icon(
                 Icons.Filled.Cancel,
                 contentDescription = "Dismiss",

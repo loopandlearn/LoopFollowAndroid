@@ -111,6 +111,7 @@ object Storage {
     val laSlots = storageValue("la.slots", com.loopandlearn.loopfollow.liveactivity.LiveActivitySlotDefaults.all.map { it.raw })
     /** On Android 16 and later, the notification is a Live Update with glucose in a status bar chip. */
     val laStatusChip = storageValue("la.statusChip", true)
+    val fullScreenCheckedUpdate = storageValue("alarm.fullScreenCheckedUpdate", 0L)
 
     // Graph settings
     val showDots = storageValue("showDots", true)
