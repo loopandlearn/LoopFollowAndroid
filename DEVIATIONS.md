@@ -55,7 +55,6 @@ Each entry: **title**: what differs and why. Code: Android location. iOS: the co
 
 - **Notifications step**: shown while the notification permission is neither granted nor asked for before, since Android has no "not determined" state to query. Outside onboarding, the permission is asked for once on launch. Code: `ui/onboarding/OnboardingScreen.kt` (`notificationsUndecided`, `RequestNotificationsIfUndecided`). iOS: `Onboarding/OnboardingViewModel.swift`, `Application/MainTabView.swift`.
 - **Day/night times and absorption pickers**: Android time and date dialogs replace the iOS wheel pickers, with the same allowed values. Code: `ui/onboarding/OnboardingScreen.kt`, `ui/remote/LoopRemoteScreens.kt`. iOS: `Onboarding/Steps/GeneralAlarmsStepView.swift`, `Remote/LoopAPNS/LoopAPNSCarbsView.swift`.
-- **Sensor and pump change seeds**: the alarm threshold is hours of warning before the sensor lifetime or the 3-day pump limit ends, so the seeds keep the alarm default (12 hours) and the step shows "Remind before" in hours, plus the sensor lifetime in days. iOS seeds 10 and 3 into the same field and labels them "Remind after" days. Code: `ui/onboarding/OnboardingModel.kt` (`defaultSeedAlarms`), `ui/onboarding/OnboardingScreen.kt` (`SeedControls`). iOS: `Onboarding/OnboardingViewModel.swift`, `Onboarding/Steps/AlarmsStepView.swift`.
 
 ## Statistics
 
