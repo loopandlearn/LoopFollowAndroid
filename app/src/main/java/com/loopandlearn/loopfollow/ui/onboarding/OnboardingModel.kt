@@ -211,8 +211,6 @@ class OnboardingModel(
             seed(AlarmType.BATTERY, "Looping phone battery", "Warns when the battery of the phone running Loop or Trio is low.", true),
             seed(AlarmType.IOB, "IOB", "Warns when insulin on board is high.", true),
             seed(AlarmType.COB, "COB", "Warns when carbs on board are high.", true),
-            // ANDROID-DEVIATION: the change seeds keep the alarm's own threshold, hours of warning before the sensor
-            // lifetime or the 3-day pump limit ends (12 h); iOS seeds 10 and 3 there and labels them as days.
             seed(AlarmType.SENSOR_CHANGE, "Sensor change", "Reminds you when the CGM sensor is due.", true) {
                 it.copy(activeOption = DayNightOption.DAY)
             },

@@ -704,14 +704,13 @@ private fun ColumnScope.SeedControls(seed: SeedAlarm, update: ((Alarm) -> Alarm)
         AlarmType.BATTERY -> double("At or below", 0.0..100.0, 5.0, "%", alarm.threshold ?: defaults.threshold) { a, v -> a.copy(threshold = v) }
         AlarmType.IOB -> double("Alert above", 0.0..30.0, 1.0, "U", alarm.threshold ?: defaults.threshold) { a, v -> a.copy(threshold = v) }
         AlarmType.COB -> double("Alert above", 0.0..200.0, 5.0, "g", alarm.threshold ?: defaults.threshold) { a, v -> a.copy(threshold = v) }
-        // ANDROID-DEVIATION: the threshold is hours of warning before the change is due, as in the alarm editor.
         AlarmType.SENSOR_CHANGE -> {
             int("Sensor lifetime", 7..15, 1, "days", alarm.sensorLifetimeDays ?: defaults.sensorLifetimeDays) { a, v -> a.copy(sensorLifetimeDays = v) }
             double("Remind before", 1.0..24.0, 1.0, "hours", alarm.threshold ?: defaults.threshold) { a, v -> a.copy(threshold = v) }
             active()
         }
         AlarmType.PUMP_CHANGE -> {
-            double("Remind before 3 days", 1.0..24.0, 1.0, "hours", alarm.threshold ?: defaults.threshold) { a, v -> a.copy(threshold = v) }
+            double("Remind before", 1.0..24.0, 1.0, "hours", alarm.threshold ?: defaults.threshold) { a, v -> a.copy(threshold = v) }
             active()
         }
         AlarmType.PUMP -> double("Alert below", 0.0..100.0, 5.0, "U", alarm.threshold ?: defaults.threshold) { a, v -> a.copy(threshold = v) }
@@ -719,9 +718,25 @@ private fun ColumnScope.SeedControls(seed: SeedAlarm, update: ((Alarm) -> Alarm)
     }
 }
 
-/** Fast drop's per-reading × window behavior isn't obvious from the two controls alone. */
+/**
+ * Plain-language summary of what a recommended alarm will do. Fast drop's per-reading × window behavior isn't
+ * obvious from the two controls alone; the change reminders state what their hours count back from.
+ */
 private fun explanation(seed: SeedAlarm): String? {
-    if (seed.type != AlarmType.FAST_DROP) return null
+    when (seed.type) {
+        AlarmType.SENSOR_CHANGE -> {
+            val fallback = Alarm.create(AlarmType.SENSOR_CHANGE)
+            val days = seed.alarm.sensorLifetimeDays ?: fallback.sensorLifetimeDays ?: 10
+            val hours = formatHours(seed.alarm.threshold ?: fallback.threshold ?: 12.0)
+            return "Reminds $hours hours before the sensor’s $days-day change-over."
+        }
+        AlarmType.PUMP_CHANGE -> {
+            val hours = formatHours(seed.alarm.threshold ?: Alarm.create(AlarmType.PUMP_CHANGE).threshold ?: 12.0)
+            return "Reminds $hours hours before the 3-day pump change limit."
+        }
+        AlarmType.FAST_DROP -> {}
+        else -> return null
+    }
     val fallback = Alarm.create(AlarmType.FAST_DROP)
     val delta = seed.alarm.delta ?: fallback.delta ?: 0.0
     val window = seed.alarm.monitoringWindow ?: fallback.monitoringWindow ?: 0
@@ -732,6 +747,9 @@ private fun explanation(seed: SeedAlarm): String? {
     val total = Localizer.formatQuantity(delta * window)
     return "Warns when glucose falls by at least $perReading $unit on each of $window readings in a row — about $total $unit over roughly ${window * 5} minutes."
 }
+
+private fun formatHours(value: Double): String =
+    if (value == Math.rint(value)) value.toLong().toString() else String.format(java.util.Locale.US, "%.1f", value)
 
 @Composable
 private fun TabOrderStep() {
