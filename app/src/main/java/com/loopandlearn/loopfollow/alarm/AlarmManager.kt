@@ -7,7 +7,6 @@ import com.loopandlearn.loopfollow.helpers.LogManager
 import com.loopandlearn.loopfollow.helpers.nowSeconds
 import com.loopandlearn.loopfollow.storage.Observable
 import com.loopandlearn.loopfollow.storage.Storage
-import java.util.Calendar
 
 object AlarmManager {
     private val evaluators: Map<AlarmType, AlarmCondition> = listOf(
@@ -116,7 +115,7 @@ object AlarmManager {
         if (mute != null && mute > now) playSound = false
         if (!config.audioDuringCalls && isOnPhoneCall()) playSound = false
 
-        val isNight = isNight(config, now)
+        val isNight = config.isNight(now)
         val isDay = !isNight
         when (alarm.playSoundOption) {
             DayNightOption.NEVER -> playSound = false
@@ -142,15 +141,6 @@ object AlarmManager {
             AlarmSound.setSoundFile(alarm.soundFile)
             AlarmSound.play(shouldRepeat, if (shouldRepeat) alarm.soundDelay else 0)
         }
-    }
-
-    /** Night runs from nightStart to dayStart, across midnight when nightStart is later. */
-    fun isNight(config: AlarmConfiguration, now: Double): Boolean {
-        val cal = Calendar.getInstance().apply { timeInMillis = (now * 1000).toLong() }
-        val nowMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val day = config.dayStart.minutesSinceMidnight
-        val night = config.nightStart.minutesSinceMidnight
-        return if (night >= day) nowMin >= night || nowMin < day else nowMin >= night && nowMin < day
     }
 
     private fun isOnPhoneCall(): Boolean {
