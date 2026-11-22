@@ -239,7 +239,7 @@ fun SnoozerScreen() {
     }
 }
 
-private fun isNightNow(): Boolean = AlarmManager.isNight(Storage.alarmConfiguration.value, nowSeconds())
+private fun isNightNow(): Boolean = Storage.alarmConfiguration.value.isNight(nowSeconds())
 
 @Composable
 private fun SnoozerBar(

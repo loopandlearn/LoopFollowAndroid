@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.Calendar
 import java.util.UUID
 
 /** Categorizes alarms, prioritized in the order they appear here. */
@@ -328,7 +329,16 @@ data class AlarmConfiguration(
     val ignoreZeroBG: Boolean = true,
     val autoSnoozeCGMStart: Boolean = false,
     val enableVolumeButtonSnooze: Boolean = false,
-)
+) {
+    /** Night runs from [nightStart] up to the next [dayStart], wrapping past midnight when [nightStart] is later in the day. */
+    fun isNight(now: Double): Boolean {
+        val cal = Calendar.getInstance().apply { timeInMillis = (now * 1000).toLong() }
+        val nowMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        val day = dayStart.minutesSinceMidnight
+        val night = nightStart.minutesSinceMidnight
+        return if (night >= day) nowMin >= night || nowMin < day else nowMin >= night && nowMin < day
+    }
+}
 
 /** A future-dated carb entry whose scheduled time has not yet arrived. */
 @Serializable

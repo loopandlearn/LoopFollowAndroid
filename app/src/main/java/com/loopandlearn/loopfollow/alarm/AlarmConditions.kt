@@ -2,7 +2,6 @@ package com.loopandlearn.loopfollow.alarm
 
 import com.loopandlearn.loopfollow.storage.Storage
 import com.loopandlearn.loopfollow.storage.StorageValue
-import java.util.Calendar
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -44,9 +43,7 @@ abstract class AlarmCondition(val type: AlarmType) {
         if (snooze != null && snooze > now) return false
         if (!passesBGLimits(alarm, data)) return false
 
-        val cal = Calendar.getInstance().apply { timeInMillis = (now * 1000).toLong() }
-        val nowMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val isNight = nowMin < config.dayStart.minutesSinceMidnight || nowMin >= config.nightStart.minutesSinceMidnight
+        val isNight = config.isNight(now)
         when (alarm.activeOption) {
             DayNightOption.DAY -> if (isNight) return false
             DayNightOption.NIGHT -> if (!isNight) return false
