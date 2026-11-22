@@ -32,10 +32,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.runtime.rememberUpdatedState
@@ -336,25 +336,30 @@ fun InfoTable(modifier: Modifier = Modifier) {
     }
 
     val visible = if (scroll.isScrollInProgress) null else wholeRows(heights, scroll.value, viewportHeight, bottomTolerance)
-    // The clip takes its first measured position at once and animates only later changes.
+    // The clip takes its first measured position directly and animates only later changes.
     val measured = viewportHeight > 0 && heights.all { it > 0 }
     var animateClip by remember { mutableStateOf(false) }
-    LaunchedEffect(measured) {
-        if (measured) {
-            withFrameNanos { }
-            animateClip = true
-        }
-    }
     val clipSpec: AnimationSpec<Float> = if (animateClip) tween(150, easing = FastOutSlowInEasing) else snap()
-    val clipTop by animateFloatAsState(visible?.first?.toFloat() ?: 0f, clipSpec, label = "infoClipTop")
-    val clipBottom by animateFloatAsState(visible?.last?.toFloat() ?: viewportHeight.toFloat(), clipSpec, label = "infoClipBottom")
+    val targetTop = visible?.first?.toFloat() ?: 0f
+    val targetBottom = visible?.last?.toFloat() ?: viewportHeight.toFloat()
+    val animatedTop by animateFloatAsState(targetTop, clipSpec, label = "infoClipTop")
+    val animatedBottom by animateFloatAsState(targetBottom, clipSpec, label = "infoClipBottom")
+    if (!animateClip && measured && animatedTop == targetTop && animatedBottom == targetBottom) {
+        SideEffect { animateClip = true }
+    }
     val endSpace = endSpace(heights, viewportHeight, bottomTolerance)
 
     Column(
         modifier
             .then(if (snapshot != null) Modifier.retroCard() else Modifier)
             .onSizeChanged { viewportHeight = it.height }
-            .drawWithContent { if (measured) clipRect(top = clipTop, bottom = clipBottom) { this@drawWithContent.drawContent() } else drawContent() }
+            .drawWithContent {
+                when {
+                    !measured -> drawContent()
+                    animateClip -> clipRect(top = animatedTop, bottom = animatedBottom) { this@drawWithContent.drawContent() }
+                    else -> clipRect(top = targetTop, bottom = targetBottom) { this@drawWithContent.drawContent() }
+                }
+            }
             .verticalScroll(scroll),
     ) {
         keys.forEachIndexed { index, key ->
