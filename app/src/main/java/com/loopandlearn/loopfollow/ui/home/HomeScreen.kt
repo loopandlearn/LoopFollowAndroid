@@ -32,6 +32,18 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -292,18 +305,104 @@ fun InfoTable(modifier: Modifier = Modifier) {
         if (snap == null) tableData[item.type.ordinal] else snap.rows[item.type].let { InfoData(item.type, it?.value ?: "", it?.numericValue) }
     }
 
-    Column(modifier.then(if (snapshot != null) Modifier.retroCard() else Modifier).verticalScroll(rememberScrollState())) {
-        if (tzEnabled) {
-            InfoRow("Time Zone", tzId, null)
-            HorizontalDivider(thickness = 0.5.dp, color = colors.separator, modifier = Modifier.padding(start = 8.dp))
-        }
-        rows.forEachIndexed { index, row ->
-            InfoRow(row.type.displayName, row.value, valueColor(row, items))
-            if (index < rows.size - 1) {
-                HorizontalDivider(thickness = 0.5.dp, color = colors.separator, modifier = Modifier.padding(start = 8.dp))
+    val keys = (if (tzEnabled) listOf(TIME_ZONE_ROW) else emptyList()) + rows.map { it.type.ordinal }
+    val rowHeights = remember { mutableStateMapOf<Int, Int>() }
+    val heights = keys.map { rowHeights[it] ?: 0 }
+    val currentHeights by rememberUpdatedState(heights)
+    val scroll = rememberScrollState()
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    val bottomTolerance = with(LocalDensity.current) { INFO_ROW_BOTTOM_TOLERANCE.roundToPx() }
+
+    // When scrolling ends, the nearest row boundary is brought to the top edge.
+    LaunchedEffect(scroll) {
+        snapshotFlow { scroll.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling) {
+                val target = nearestRowTop(currentHeights.takeIf { it.all { h -> h > 0 } } ?: return@collect, scroll.value)
+                if (target != scroll.value) scroll.animateScrollTo(target.coerceIn(0, scroll.maxValue))
             }
         }
     }
+
+    val visible = if (scroll.isScrollInProgress) null else wholeRows(heights, scroll.value, viewportHeight, bottomTolerance)
+    val clipTop by animateFloatAsState(visible?.first?.toFloat() ?: 0f, tween(150, easing = FastOutSlowInEasing), label = "infoClipTop")
+    val clipBottom by animateFloatAsState(visible?.last?.toFloat() ?: viewportHeight.toFloat(), tween(150, easing = FastOutSlowInEasing), label = "infoClipBottom")
+    val endSpace = endSpace(heights, viewportHeight, bottomTolerance)
+
+    Column(
+        modifier
+            .then(if (snapshot != null) Modifier.retroCard() else Modifier)
+            .onSizeChanged { viewportHeight = it.height }
+            .drawWithContent { clipRect(top = clipTop, bottom = clipBottom) { this@drawWithContent.drawContent() } }
+            .verticalScroll(scroll),
+    ) {
+        keys.forEachIndexed { index, key ->
+            val separator = index < keys.size - 1
+            // The separator is drawn inside the row's bottom edge, so a row at the top edge shows none of the row above.
+            Box(
+                Modifier
+                    .onSizeChanged { rowHeights[key] = it.height }
+                    .drawWithContent {
+                        drawContent()
+                        if (separator) {
+                            val y = size.height - 0.5f
+                            drawLine(colors.separator, Offset(8.dp.toPx(), y), Offset(size.width, y), strokeWidth = 1f)
+                        }
+                    },
+            ) {
+                if (key == TIME_ZONE_ROW) {
+                    InfoRow("Time Zone", tzId, null)
+                } else {
+                    val row = rows[index - (if (tzEnabled) 1 else 0)]
+                    InfoRow(row.type.displayName, row.value, valueColor(row, items))
+                }
+            }
+        }
+        if (endSpace > 0) Spacer(Modifier.height(with(LocalDensity.current) { endSpace.toDp() }))
+    }
+}
+
+private const val TIME_ZONE_ROW = -1
+
+/** How much of a row's bottom edge may be cut off while it still counts as whole; the text sits above it. */
+private val INFO_ROW_BOTTOM_TOLERANCE = 3.dp
+
+/** The row boundary closest to [offset]. */
+private fun nearestRowTop(heights: List<Int>, offset: Int): Int {
+    var top = 0
+    for (height in heights) {
+        if (offset < top + height / 2) return top
+        top += height
+    }
+    return top
+}
+
+/** Space below the last row so that the end of the table also stops with a row at the top edge. */
+private fun endSpace(heights: List<Int>, viewport: Int, tolerance: Int): Int {
+    if (viewport <= 0 || heights.any { it <= 0 } || heights.sum() <= viewport) return 0
+    var fitting = 0
+    for (height in heights.asReversed()) {
+        if (fitting + height > viewport + tolerance) break
+        fitting += height
+    }
+    return (viewport - fitting).coerceAtLeast(0)
+}
+
+/** The part of the viewport, from its top edge, covered by rows that fit whole; null shows everything. */
+private fun wholeRows(heights: List<Int>, offset: Int, viewport: Int, tolerance: Int): IntRange? {
+    if (viewport <= 0 || heights.any { it <= 0 }) return null
+    var top = 0
+    var first: Int? = null
+    var last: Int? = null
+    for (height in heights) {
+        val bottom = top + height
+        if (top >= offset && bottom <= offset + viewport + tolerance) {
+            if (first == null) first = top
+            last = bottom
+        }
+        top = bottom
+    }
+    if (first == null || last == null) return null
+    return (first - offset)..(last - offset)
 }
 
 @Composable
