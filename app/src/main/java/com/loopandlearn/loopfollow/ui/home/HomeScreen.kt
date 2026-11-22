@@ -32,6 +32,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
@@ -313,26 +319,42 @@ fun InfoTable(modifier: Modifier = Modifier) {
     var viewportHeight by remember { mutableIntStateOf(0) }
     val bottomTolerance = with(LocalDensity.current) { INFO_ROW_BOTTOM_TOLERANCE.roundToPx() }
 
-    // When scrolling ends, the nearest row boundary is brought to the top edge.
+    // While the table is at rest, the nearest row boundary is brought to the top edge: when scrolling ends, and when
+    // the rows or the viewport change size. A touch during the snap cancels only the snap.
     LaunchedEffect(scroll) {
-        snapshotFlow { scroll.isScrollInProgress }.collect { scrolling ->
-            if (!scrolling) {
-                val target = nearestRowTop(currentHeights.takeIf { it.all { h -> h > 0 } } ?: return@collect, scroll.value)
-                if (target != scroll.value) scroll.animateScrollTo(target.coerceIn(0, scroll.maxValue))
+        snapshotFlow { Triple(scroll.isScrollInProgress, scroll.maxValue, currentHeights to viewportHeight) }.collect { (scrolling) ->
+            if (scrolling) return@collect
+            val target = nearestRowTop(currentHeights.takeIf { it.all { h -> h > 0 } } ?: return@collect, scroll.value)
+                .coerceIn(0, scroll.maxValue)
+            if (target == scroll.value) return@collect
+            try {
+                scroll.animateScrollTo(target)
+            } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
             }
         }
     }
 
     val visible = if (scroll.isScrollInProgress) null else wholeRows(heights, scroll.value, viewportHeight, bottomTolerance)
-    val clipTop by animateFloatAsState(visible?.first?.toFloat() ?: 0f, tween(150, easing = FastOutSlowInEasing), label = "infoClipTop")
-    val clipBottom by animateFloatAsState(visible?.last?.toFloat() ?: viewportHeight.toFloat(), tween(150, easing = FastOutSlowInEasing), label = "infoClipBottom")
+    // The clip takes its first measured position at once and animates only later changes.
+    val measured = viewportHeight > 0 && heights.all { it > 0 }
+    var animateClip by remember { mutableStateOf(false) }
+    LaunchedEffect(measured) {
+        if (measured) {
+            withFrameNanos { }
+            animateClip = true
+        }
+    }
+    val clipSpec: AnimationSpec<Float> = if (animateClip) tween(150, easing = FastOutSlowInEasing) else snap()
+    val clipTop by animateFloatAsState(visible?.first?.toFloat() ?: 0f, clipSpec, label = "infoClipTop")
+    val clipBottom by animateFloatAsState(visible?.last?.toFloat() ?: viewportHeight.toFloat(), clipSpec, label = "infoClipBottom")
     val endSpace = endSpace(heights, viewportHeight, bottomTolerance)
 
     Column(
         modifier
             .then(if (snapshot != null) Modifier.retroCard() else Modifier)
             .onSizeChanged { viewportHeight = it.height }
-            .drawWithContent { clipRect(top = clipTop, bottom = clipBottom) { this@drawWithContent.drawContent() } }
+            .drawWithContent { if (measured) clipRect(top = clipTop, bottom = clipBottom) { this@drawWithContent.drawContent() } else drawContent() }
             .verticalScroll(scroll),
     ) {
         keys.forEachIndexed { index, key ->
