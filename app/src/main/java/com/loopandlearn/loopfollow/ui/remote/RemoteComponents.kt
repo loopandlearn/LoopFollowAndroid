@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -191,7 +192,7 @@ fun BottomActionButton(title: String, busyTitle: String, busy: Boolean, enabled:
             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
         ) {
             if (busy) {
-                CircularProgressIndicator(Modifier.padding(end = 8.dp).width(18.dp), color = Color.White, strokeWidth = 2.dp)
+                CircularProgressIndicator(Modifier.padding(end = 8.dp).size(18.dp), color = Color.White, strokeWidth = 2.dp)
                 Text(busyTitle, fontSize = 17.sp)
             } else {
                 Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
