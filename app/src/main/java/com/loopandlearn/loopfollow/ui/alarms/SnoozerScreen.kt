@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -139,12 +141,21 @@ fun SnoozerScreen() {
             val clockText = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault()).format(Date(clock))
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val landscape = maxWidth > maxHeight
+                var fit by remember(maxWidth, maxHeight, emoji, sensorState != null) { mutableFloatStateOf(1f) }
+                val fitHeight = Modifier.layout { measurable, constraints ->
+                    val needed = measurable.maxIntrinsicHeight(constraints.maxWidth)
+                    if (needed > constraints.maxHeight && fit > MIN_FIT) {
+                        fit = maxOf(MIN_FIT, fit * constraints.maxHeight / needed * 0.98f)
+                    }
+                    val placeable = measurable.measure(constraints)
+                    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                }
                 if (landscape) {
-                    Row(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = if (barShowing) 0.dp else 16.dp)) {
+                    Row(fitHeight.fillMaxSize().padding(horizontal = 16.dp, vertical = if (barShowing) 0.dp else 16.dp)) {
                         Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             AutoSizeText(
                                 bgText,
-                                maxFontSize = if (barShowing) 100.sp else 120.sp,
+                                maxFontSize = (if (barShowing) 100.sp else 120.sp) * fit,
                                 fontWeight = FontWeight.Black,
                                 color = bgDisplayColor,
                                 textDecoration = if (stale) TextDecoration.LineThrough else null,
@@ -152,42 +163,42 @@ fun SnoozerScreen() {
                                 minScale = 0.5f,
                             )
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                                com.loopandlearn.loopfollow.ui.home.DirectionArrows(direction, Color.White, if (barShowing) 44.dp else 52.dp, if (barShowing) 40.sp else 48.sp)
-                                Text(delta, fontSize = if (barShowing) 40.sp else 48.sp, color = Color.White, maxLines = 1)
+                                com.loopandlearn.loopfollow.ui.home.DirectionArrows(direction, Color.White, (if (barShowing) 44.dp else 52.dp) * fit, (if (barShowing) 40.sp else 48.sp) * fit)
+                                Text(delta, fontSize = (if (barShowing) 40.sp else 48.sp) * fit, color = Color.White, maxLines = 1)
                             }
-                            AutoSizeText(minAgo, maxFontSize = if (barShowing) 28.sp else 34.sp, color = Color.White, modifier = Modifier.fillMaxWidth(), minScale = 0.5f)
+                            AutoSizeText(minAgo, maxFontSize = (if (barShowing) 28.sp else 34.sp) * fit, color = Color.White, modifier = Modifier.fillMaxWidth(), minScale = 0.5f)
                             sensorState?.let {
-                                Text("CGM: ${it.summary}", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = colors.orange, textAlign = TextAlign.Center, maxLines = 2)
+                                Text("CGM: ${it.summary}", fontSize = 22.sp * fit, fontWeight = FontWeight.SemiBold, color = colors.orange, textAlign = TextAlign.Center, maxLines = 2)
                             }
                         }
                         Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            if (emoji) Text(bgEmoji(bg, stale, bgText), fontSize = 96.sp)
-                            AutoSizeText(clockText, maxFontSize = 70.sp, color = Color.White, modifier = Modifier.fillMaxWidth())
+                            if (emoji) Text(bgEmoji(bg, stale, bgText), fontSize = 96.sp * fit)
+                            AutoSizeText(clockText, maxFontSize = 70.sp * fit, color = Color.White, modifier = Modifier.fillMaxWidth())
                         }
                     }
                 } else {
                     Column(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = if (barShowing) 0.dp else 16.dp),
+                        fitHeight.fillMaxSize().padding(horizontal = 16.dp, vertical = if (barShowing) 0.dp else 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         AutoSizeText(
                             bgText,
-                            maxFontSize = if (barShowing) 170.sp else 200.sp,
+                            maxFontSize = (if (barShowing) 170.sp else 200.sp) * fit,
                             fontWeight = FontWeight.Black,
                             color = bgDisplayColor,
                             textDecoration = if (stale) TextDecoration.LineThrough else null,
                             modifier = Modifier.fillMaxWidth(),
                             minScale = 0.3f,
                         )
-                        com.loopandlearn.loopfollow.ui.home.DirectionArrows(direction, Color.White, if (barShowing) 90.dp else 120.dp, if (barShowing) 80.sp else 100.sp)
-                        AutoSizeText(delta, maxFontSize = if (barShowing) 70.sp else 90.sp, color = Color.White, modifier = Modifier.fillMaxWidth(), minScale = 0.3f)
-                        AutoSizeText(minAgo, maxFontSize = if (barShowing) 50.sp else 60.sp, color = Color.White, modifier = Modifier.fillMaxWidth(), minScale = 0.3f)
+                        com.loopandlearn.loopfollow.ui.home.DirectionArrows(direction, Color.White, (if (barShowing) 90.dp else 120.dp) * fit, (if (barShowing) 80.sp else 100.sp) * fit)
+                        AutoSizeText(delta, maxFontSize = (if (barShowing) 70.sp else 90.sp) * fit, color = Color.White, modifier = Modifier.fillMaxWidth(), minScale = 0.3f)
+                        AutoSizeText(minAgo, maxFontSize = (if (barShowing) 50.sp else 60.sp) * fit, color = Color.White, modifier = Modifier.fillMaxWidth(), minScale = 0.3f)
                         sensorState?.let {
-                            Text("CGM: ${it.summary}", fontSize = 26.sp, fontWeight = FontWeight.SemiBold, color = colors.orange, textAlign = TextAlign.Center, maxLines = 2)
+                            Text("CGM: ${it.summary}", fontSize = 26.sp * fit, fontWeight = FontWeight.SemiBold, color = colors.orange, textAlign = TextAlign.Center, maxLines = 2)
                         }
                         Spacer(Modifier.weight(1f))
-                        if (emoji) Text(bgEmoji(bg, stale, bgText), fontSize = 96.sp)
-                        AutoSizeText(clockText, maxFontSize = 90.sp, color = Color.White, modifier = Modifier.fillMaxWidth())
+                        if (emoji) Text(bgEmoji(bg, stale, bgText), fontSize = 96.sp * fit)
+                        AutoSizeText(clockText, maxFontSize = 90.sp * fit, color = Color.White, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(16.dp))
                     }
                 }
@@ -238,6 +249,9 @@ fun SnoozerScreen() {
         }
     }
 }
+
+/** Smallest share of the full size the Snoozer content shrinks to when it is taller than the screen. */
+private const val MIN_FIT = 0.4f
 
 private fun isNightNow(): Boolean = Storage.alarmConfiguration.value.isNight(nowSeconds())
 
