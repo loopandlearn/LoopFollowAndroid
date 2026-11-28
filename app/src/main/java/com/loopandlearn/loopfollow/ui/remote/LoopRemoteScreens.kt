@@ -430,7 +430,7 @@ fun LoopBolusScreen(onBack: () -> Unit) {
                         }
                     }
                     if (quickPicks.isNotEmpty()) {
-                        formSection(header = "Quick-Pick Boluses", footer = QUICK_PICK_BOLUS_INFO) {
+                        formSection(header = "Quick-Pick Boluses", info = QUICK_PICK_BOLUS_INFO) {
                             QuickPickChips(quickPicks.map { units -> "${InsulinFormatter.string(units)}U" to { amount = units } })
                         }
                     }
@@ -618,7 +618,7 @@ fun LoopCarbsScreen(onBack: () -> Unit) {
             Box(Modifier.weight(1f)) {
                 FormList {
                     if (quickPicks.isNotEmpty()) {
-                        formSection(header = "Quick-Pick Meals", footer = QUICK_PICK_MEAL_INFO) {
+                        formSection(header = "Quick-Pick Meals", info = QUICK_PICK_MEAL_INFO) {
                             QuickPickChips(quickPicks.map { meal -> "${meal.carbs.toInt()}g" to { carbs = meal.carbs } })
                         }
                     }
