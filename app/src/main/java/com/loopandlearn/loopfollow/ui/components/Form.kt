@@ -25,11 +25,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,28 +69,46 @@ fun FormList(modifier: Modifier = Modifier, content: LazyListScope.() -> Unit) {
     )
 }
 
-/** One section of a form: header, rounded card of rows, footer. */
+/** One section of a form: header, rounded card of rows, footer. [info] adds an info button to the header that shows it in a dialog. */
 fun LazyListScope.formSection(
     header: String? = null,
     footer: String? = null,
+    info: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     item {
-        FormSection(header, footer, content)
+        FormSection(header, footer, info, content)
     }
 }
 
 @Composable
-fun FormSection(header: String? = null, footer: String? = null, content: @Composable ColumnScope.() -> Unit) {
+fun FormSection(
+    header: String? = null,
+    footer: String? = null,
+    info: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val colors = LocalAppColors.current
+    var showInfo by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         if (header != null) {
-            Text(
-                header.uppercase(),
-                fontSize = 13.sp,
-                color = colors.secondaryText,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 6.dp),
-            )
+            Row(
+                Modifier.padding(start = 16.dp, top = 16.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(header.uppercase(), fontSize = 13.sp, color = colors.secondaryText)
+                if (info != null) {
+                    Icon(
+                        Icons.Outlined.Info,
+                        contentDescription = "About $header",
+                        tint = colors.blue,
+                        modifier = Modifier
+                            .clickable { showInfo = true }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .size(18.dp),
+                    )
+                }
+            }
         } else {
             Spacer(Modifier.height(20.dp))
         }
@@ -103,6 +124,14 @@ fun FormSection(header: String? = null, footer: String? = null, content: @Compos
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp),
             )
         }
+    }
+    if (showInfo && info != null) {
+        AlertDialog(
+            onDismissRequest = { showInfo = false },
+            title = header?.let { { Text(it) } },
+            text = { Text(info) },
+            confirmButton = { TextButton(onClick = { showInfo = false }) { Text("OK") } },
+        )
     }
 }
 

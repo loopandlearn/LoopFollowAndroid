@@ -262,7 +262,7 @@ fun TrioBolusScreen(onBack: () -> Unit) {
                         }
                     }
                     if (quickPicks.isNotEmpty()) {
-                        formSection(header = "Quick-Pick Boluses", footer = QUICK_PICK_BOLUS_INFO) {
+                        formSection(header = "Quick-Pick Boluses", info = QUICK_PICK_BOLUS_INFO) {
                             QuickPickChips(quickPicks.map { "${InsulinFormatter.string(it)}U" to { apply(it) } })
                         }
                     }
@@ -349,7 +349,7 @@ fun TrioMealScreen(onBack: () -> Unit) {
             Box(Modifier.weight(1f)) {
                 FormList {
                     if (quickPicks.isNotEmpty()) {
-                        formSection(header = "Quick-Pick Meals", footer = QUICK_PICK_MEAL_INFO) {
+                        formSection(header = "Quick-Pick Meals", info = QUICK_PICK_MEAL_INFO) {
                             QuickPickChips(quickPicks.map { meal ->
                                 val lines = buildList {
                                     add("${meal.carbs.toInt()}g")
